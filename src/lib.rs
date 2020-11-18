@@ -9,17 +9,12 @@ use std::io;
 use std::num::Wrapping;
 
 mod connection;
+mod event;
+
 pub use connection::{Connection, Message, WsError, WsResult};
+pub use event::Event;
 
 pub type Id = usize;
-
-#[derive(Debug, PartialEq)]
-pub enum Event {
-    Kicked(Id, String),
-    Connected(Id),
-    Disconnected(Id),
-    Message(Id, Message),
-}
 
 pub struct Server {
     sender: Mutex<UnboundedSender<Event>>,
