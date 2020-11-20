@@ -9,9 +9,9 @@
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    version="1.1"
    id="svg901"
-   width="553.78589"
-   height="447.28827"
-   viewBox="0 0 553.78588 447.28827"
+   width="237.71445"
+   height="192"
+   viewBox="0 0 237.71444 192"
    sodipodi:docname="logo.svg"
    inkscape:version="1.0.1 (3bc2e813f5, 2020-09-07)">
   <metadata
@@ -22,7 +22,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -37,25 +37,26 @@
      guidetolerance="10"
      inkscape:pageopacity="0"
      inkscape:pageshadow="2"
-     inkscape:window-width="956"
-     inkscape:window-height="1060"
+     inkscape:window-width="1920"
+     inkscape:window-height="1064"
      id="namedview903"
      showgrid="false"
-     inkscape:zoom="0.1767767"
-     inkscape:cx="364.29534"
-     inkscape:cy="-748.77863"
+     inkscape:zoom="4"
+     inkscape:cx="123.27772"
+     inkscape:cy="66.266975"
      inkscape:window-x="0"
      inkscape:window-y="16"
      inkscape:window-maximized="0"
-     inkscape:current-layer="g909" />
+     inkscape:current-layer="g909"
+     inkscape:document-rotation="0" />
   <g
      inkscape:groupmode="layer"
      inkscape:label="Image"
      id="g909"
-     transform="translate(-1382.8523,1030.4859)">
+     transform="translate(-1382.8523,1030.486)">
     <g
        id="g1083"
-       transform="translate(999.65736,-1537.0665)">
+       transform="matrix(0.42925337,0,0,0.42925337,1218.3646,-1247.9374)">
       <path
          style="fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
          d="M 936.98079,506.58056 584.69493,953.86884 594.72159,731.50009 Z"
