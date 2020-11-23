@@ -9,9 +9,9 @@
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    version="1.1"
    id="svg901"
-   width="237.71445"
-   height="192"
-   viewBox="0 0 237.71444 192"
+   width="79.238152"
+   height="64"
+   viewBox="0 0 79.238149 64"
    sodipodi:docname="logo-mono.svg"
    inkscape:version="1.0.1 (3bc2e813f5, 2020-09-07)">
   <metadata
@@ -43,7 +43,7 @@
      showgrid="false"
      inkscape:zoom="0.9983453"
      inkscape:cx="108.10672"
-     inkscape:cy="49.79939"
+     inkscape:cy="49.799384"
      inkscape:window-x="0"
      inkscape:window-y="16"
      inkscape:window-maximized="0"
@@ -53,10 +53,10 @@
      inkscape:groupmode="layer"
      inkscape:label="Image"
      id="g909"
-     transform="translate(-608.15835,874.78974)">
+     transform="translate(-608.15835,874.78973)">
     <g
        id="g1047"
-       transform="matrix(0.42925337,0,0,0.42925337,434.15916,-1070.9191)">
+       transform="matrix(0.14308446,0,0,0.14308446,550.15862,-940.16619)">
       <path
          style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
          d="M 405.35312,596.96094 800.50759,755.51047 959.13898,456.90815 Z"

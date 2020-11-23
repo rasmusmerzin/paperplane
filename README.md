@@ -1,6 +1,9 @@
 <div align="center">
-  <img alt="logo" src="./logo/logo.svg" height="96" />
-  <h1>Paperplane</h1>
+  <h1>
+    <img alt="logo" src="./logo/logo.svg" />
+    <br />
+    Paperplane
+  </h1>
   <a href="https://gitlab.com/rasmusmerzin/paperplane/-/commits/master">
     <img alt="build" src="https://img.shields.io/gitlab/pipeline/rasmusmerzin/paperplane/master" />
   </a>

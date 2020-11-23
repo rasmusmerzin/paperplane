@@ -9,9 +9,9 @@
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    version="1.1"
    id="svg901"
-   width="237.71445"
-   height="192"
-   viewBox="0 0 237.71444 192"
+   width="79.238152"
+   height="64"
+   viewBox="0 0 79.238149 64"
    sodipodi:docname="logo.svg"
    inkscape:version="1.0.1 (3bc2e813f5, 2020-09-07)">
   <metadata
@@ -41,9 +41,9 @@
      inkscape:window-height="1064"
      id="namedview903"
      showgrid="false"
-     inkscape:zoom="4"
-     inkscape:cx="123.27772"
-     inkscape:cy="66.266975"
+     inkscape:zoom="5.6568543"
+     inkscape:cx="36.553968"
+     inkscape:cy="50.661771"
      inkscape:window-x="0"
      inkscape:window-y="16"
      inkscape:window-maximized="0"
@@ -56,7 +56,7 @@
      transform="translate(-1382.8523,1030.486)">
     <g
        id="g1083"
-       transform="matrix(0.42925337,0,0,0.42925337,1218.3646,-1247.9374)">
+       transform="matrix(0.14308446,0,0,0.14308446,1328.0231,-1102.9698)">
       <path
          style="fill:#cccccc;fill-opacity:1;stroke:none;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
          d="M 936.98079,506.58056 584.69493,953.86884 594.72159,731.50009 Z"
