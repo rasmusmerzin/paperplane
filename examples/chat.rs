@@ -24,6 +24,7 @@ fn main() {
                         server.send_all(Message::Text(format!("{} kicked: '{}'", id, reason))).await.ok()
                     }
                     Event::Message(id, msg) => match msg.to_text() {
+                        Ok("close") => server.close().await.ok(),
                         Ok("exit") => server.kick(id, "exit").await.ok(),
                         Ok("kickall") => server.kick_all("kickall".into()).await.ok(),
                         Ok("kickthem") => {

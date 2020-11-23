@@ -21,6 +21,7 @@ pub struct Server {
     receiver: Mutex<UnboundedReceiver<Event>>,
     connection_seq: Mutex<Wrapping<Id>>,
     connections: RwLock<HashMap<Id, (Arc<Connection>, task::JoinHandle<()>)>>,
+    listeners: RwLock<Vec<task::JoinHandle<()>>>,
 }
 
 impl Server {
@@ -31,6 +32,7 @@ impl Server {
             receiver: Mutex::new(receiver),
             connection_seq: Mutex::new(Wrapping(Id::MIN)),
             connections: RwLock::new(HashMap::new()),
+            listeners: RwLock::new(vec![])
         })
     }
 
@@ -68,17 +70,32 @@ impl Server {
         Ok(conn_id.0)
     }
 
-    pub async fn listen<A: ToSocketAddrs>(self: &Arc<Self>, addr: A) -> io::Result<task::JoinHandle<()>> {
+    pub async fn listen<A: ToSocketAddrs>(self: &Arc<Self>, addr: A) -> io::Result<()> {
         let listener = TcpListener::bind(addr).await?;
         let server = self.clone();
-        Ok(task::spawn(async move {
-            while let Ok((stream, _)) = listener.accept().await {
-                let server = server.clone();
-                task::spawn(async move {
-                    server.add(stream).await.ok();
-                });
-            }
-        }))
+        self.listeners.write().await.push(
+            task::spawn(async move {
+                while let Ok((stream, _)) = listener.accept().await {
+                    let server = server.clone();
+                    task::spawn(async move {
+                        server.add(stream).await.ok();
+                    });
+                }
+            })
+        );
+        Ok(())
+    }
+
+    pub async fn listener_count(self: &Arc<Self>) -> usize {
+        self.listeners.read().await.len()
+    }
+
+    pub async fn close(self: &Arc<Self>) -> WsResult<()> {
+        let mut listeners = self.listeners.write().await;
+        while let Some(task) = listeners.pop() {
+            task.cancel().await;
+        }
+        self.kick_all("server closed".into()).await
     }
 
     pub async fn next(&self) -> Option<Event> {

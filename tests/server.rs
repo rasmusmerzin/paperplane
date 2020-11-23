@@ -8,14 +8,15 @@ use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use paperplane::{Server, Event, Message, WsResult};
 
+const LOCALHOST: &str = "127.0.0.1";
+
 async fn base(port: usize, count: usize) -> WsResult<(
     Arc<Server>,
-    task::JoinHandle<()>,
     Vec<WebSocketStream<ConnectStream>>,
 )> {
-    let addr = format!("127.0.0.1:{}", port);
+    let addr = format!("{}:{}", LOCALHOST, port);
     let server = Server::new();
-    let task = server.listen(&addr).await?;
+    server.listen(&addr).await?;
     
     let mut clients = vec![];
     for i in 0..count {
@@ -23,13 +24,13 @@ async fn base(port: usize, count: usize) -> WsResult<(
         assert_eq!(server.next().await, Some(Event::Connected(i)));
     }
 
-    Ok((server, task, clients))
+    Ok((server, clients))
 }
 
 #[test]
 fn receive() -> WsResult<()> {
     task::block_on(async {
-        let (server, task, mut clients) = base(8001, 2).await?;
+        let (server, mut clients) = base(8001, 2).await?;
 
         let msg = Message::Text("first".into());
         clients[0].send(msg.clone()).await?;
@@ -39,15 +40,14 @@ fn receive() -> WsResult<()> {
         clients[1].send(msg.clone()).await?;
         assert_eq!(server.next().await, Some(Event::Message(1, msg)));
 
-        task.cancel().await;
-        Ok(())
+        server.close().await
     })
 }
 
 #[test]
 fn send() -> WsResult<()> {
     task::block_on(async {
-        let (server, task, mut clients) = base(8002, 3).await?;
+        let (server, mut clients) = base(8002, 3).await?;
 
         let msg0 = Message::Text("first back".into());
         server.send(0, msg0.clone()).await?;
@@ -71,15 +71,14 @@ fn send() -> WsResult<()> {
         assert_eq!(clients[1].next().await.unwrap()?, msg);
         assert_eq!(clients[2].next().await.unwrap()?, msg);
 
-        task.cancel().await;
-        Ok(())
+        server.close().await
     })
 }
 
 #[test]
 fn disconnect() -> WsResult<()> {
     task::block_on(async {
-        let (server, task, mut clients) = base(8003, 4).await?;
+        let (server, mut clients) = base(8003, 4).await?;
 
         server.kick_map(|id| match id {
             1 => Some("half".into()),
@@ -108,7 +107,33 @@ fn disconnect() -> WsResult<()> {
         })));
         assert_eq!(server.next().await.unwrap(), Event::Kicked(3, "all".into()));
 
-        task.cancel().await;
+        server.close().await
+    })
+}
+
+#[test]
+fn close() -> WsResult<()> {
+    task::block_on(async {
+        let (server, clients) = base(8010, 4).await?;
+
+        assert_eq!(server.listener_count().await, 1);
+        server.listen(format!("{}:{}", LOCALHOST, 8011)).await?;
+        assert_eq!(server.listener_count().await, 2);
+        server.listen(format!("{}:{}", LOCALHOST, 8012)).await?;
+        assert_eq!(server.listener_count().await, 3);
+        server.listen(format!("{}:{}", LOCALHOST, 8013)).await?;
+        assert_eq!(server.listener_count().await, 4);
+
+        server.close().await?;
+        assert_eq!(server.listener_count().await, 0);
+
+        for mut client in clients {
+            assert_eq!(client.next().await.unwrap()?, Message::Close(Some(CloseFrame {
+                code: CloseCode::Normal,
+                reason: "server closed".into(),
+            })));
+        }
+
         Ok(())
     })
 }
