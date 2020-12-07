@@ -1,3 +1,4 @@
+use crate::{Message, WsError, WsResult};
 use async_std::net::TcpStream;
 use async_std::sync::Mutex;
 use async_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
@@ -6,8 +7,6 @@ use async_tungstenite::{accept_async, WebSocketStream};
 use futures::sink::SinkExt;
 use futures::stream::{SplitSink, SplitStream, StreamExt};
 use std::io;
-
-pub use async_tungstenite::tungstenite::{Error as WsError, Message, Result as WsResult};
 
 pub struct Connection {
     sender: Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>,

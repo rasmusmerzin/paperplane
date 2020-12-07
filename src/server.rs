@@ -1,3 +1,5 @@
+use crate::connection::Connection;
+use crate::{Event, Id, Message, WsError, WsResult};
 use async_std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use async_std::sync::{Arc, Mutex, RwLock};
 use async_std::task;
@@ -7,9 +9,6 @@ use futures::stream::StreamExt;
 use std::collections::HashMap;
 use std::io;
 use std::num::Wrapping;
-
-use crate::connection::Connection;
-use crate::{Event, Id, Message, WsError, WsResult};
 
 pub struct Server {
     sender: Mutex<UnboundedSender<Event>>,
