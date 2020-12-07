@@ -1,7 +1,7 @@
 use async_std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use async_std::sync::{Arc, Mutex, RwLock};
 use async_std::task;
-use futures::channel::mpsc::{unbounded, UnboundedSender, UnboundedReceiver};
+use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
@@ -9,7 +9,7 @@ use std::io;
 use std::num::Wrapping;
 
 use crate::connection::Connection;
-use crate::{Message, WsError, WsResult, Event, Id};
+use crate::{Event, Id, Message, WsError, WsResult};
 
 pub struct Server {
     sender: Mutex<UnboundedSender<Event>>,
@@ -27,7 +27,7 @@ impl Server {
             receiver: Mutex::new(receiver),
             connection_seq: Mutex::new(Wrapping(Id::MIN)),
             connections: RwLock::new(HashMap::new()),
-            listeners: RwLock::new(vec![])
+            listeners: RwLock::new(vec![]),
         })
     }
 
@@ -43,24 +43,44 @@ impl Server {
 
         let server = self.clone();
 
-        self.connections.write().await.insert(conn_id.0, (
-            conn.clone(),
-            task::spawn(async move {
-                while let Some(msg) = conn.next().await {
-                    if let Ok(msg) = msg {
-                        if msg.is_binary() || msg.is_text() {
-                            server.sender.lock().await.send(Event::Message(conn_id.0, msg)).await.ok();
+        self.connections.write().await.insert(
+            conn_id.0,
+            (
+                conn.clone(),
+                task::spawn(async move {
+                    while let Some(msg) = conn.next().await {
+                        if let Ok(msg) = msg {
+                            if msg.is_binary() || msg.is_text() {
+                                server
+                                    .sender
+                                    .lock()
+                                    .await
+                                    .send(Event::Message(conn_id.0, msg))
+                                    .await
+                                    .ok();
+                            }
                         }
                     }
-                }
 
-                server.connections.write().await.remove(&conn_id.0);
+                    server.connections.write().await.remove(&conn_id.0);
 
-                server.sender.lock().await.send(Event::Disconnected(conn_id.0)).await.ok();
-            }),
-        ));
+                    server
+                        .sender
+                        .lock()
+                        .await
+                        .send(Event::Disconnected(conn_id.0))
+                        .await
+                        .ok();
+                }),
+            ),
+        );
 
-        self.sender.lock().await.send(Event::Connected(conn_id.0)).await.ok();
+        self.sender
+            .lock()
+            .await
+            .send(Event::Connected(conn_id.0))
+            .await
+            .ok();
 
         Ok(conn_id.0)
     }
@@ -68,16 +88,14 @@ impl Server {
     pub async fn listen<A: ToSocketAddrs>(self: &Arc<Self>, addr: A) -> io::Result<()> {
         let listener = TcpListener::bind(addr).await?;
         let server = self.clone();
-        self.listeners.write().await.push(
-            task::spawn(async move {
-                while let Ok((stream, _)) = listener.accept().await {
-                    let server = server.clone();
-                    task::spawn(async move {
-                        server.add(stream).await.ok();
-                    });
-                }
-            })
-        );
+        self.listeners.write().await.push(task::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                let server = server.clone();
+                task::spawn(async move {
+                    server.add(stream).await.ok();
+                });
+            }
+        }));
         Ok(())
     }
 
@@ -101,7 +119,10 @@ impl Server {
         if let Some((conn, _)) = self.connections.read().await.get(&id) {
             conn.send(msg).await
         } else {
-            Err(WsError::Io(io::Error::new(io::ErrorKind::NotFound, "connection not found")))
+            Err(WsError::Io(io::Error::new(
+                io::ErrorKind::NotFound,
+                "connection not found",
+            )))
         }
     }
 
@@ -110,9 +131,7 @@ impl Server {
         for (conn, _) in self.connections.read().await.values() {
             let msg = msg.clone();
             let conn = conn.clone();
-            tasks.push(task::spawn(async move {
-                conn.send(msg).await
-            }));
+            tasks.push(task::spawn(async move { conn.send(msg).await }));
         }
         let mut result = Ok(());
         for task in tasks {
@@ -126,9 +145,7 @@ impl Server {
         for (id, (conn, _)) in self.connections.read().await.iter() {
             if let Some(msg) = map(*id) {
                 let conn = conn.clone();
-                tasks.push(task::spawn(async move {
-                    conn.send(msg).await
-                }));
+                tasks.push(task::spawn(async move { conn.send(msg).await }));
             }
         }
         let mut result = Ok(());
@@ -141,13 +158,21 @@ impl Server {
     pub async fn kick(&self, id: Id, reason: &str) -> WsResult<()> {
         if let Some((conn, task)) = self.connections.write().await.remove(&id) {
             task.cancel().await;
-            self.sender.lock().await.send(Event::Kicked(id, reason.into())).await.ok();
+            self.sender
+                .lock()
+                .await
+                .send(Event::Kicked(id, reason.into()))
+                .await
+                .ok();
             match Arc::try_unwrap(conn) {
                 Ok(conn) => conn.close(reason).await,
-                Err(conn) =>  conn.close_undefined().await,
+                Err(conn) => conn.close_undefined().await,
             }
         } else {
-            Err(WsError::Io(io::Error::new(io::ErrorKind::NotFound, "connection not found")))
+            Err(WsError::Io(io::Error::new(
+                io::ErrorKind::NotFound,
+                "connection not found",
+            )))
         }
     }
 
@@ -158,10 +183,16 @@ impl Server {
             let reason = reason.clone();
             tasks.push(task::spawn(async move {
                 task.cancel().await;
-                server.sender.lock().await.send(Event::Kicked(id, reason.clone())).await.ok();
+                server
+                    .sender
+                    .lock()
+                    .await
+                    .send(Event::Kicked(id, reason.clone()))
+                    .await
+                    .ok();
                 match Arc::try_unwrap(conn) {
                     Ok(conn) => conn.close(&reason).await,
-                    Err(conn) =>  conn.close_undefined().await,
+                    Err(conn) => conn.close_undefined().await,
                 }
             }));
         }
@@ -181,13 +212,22 @@ impl Server {
                 tasks.push(task::spawn(async move {
                     if let Some((conn, task)) = server.connections.write().await.remove(&id) {
                         task.cancel().await;
-                        server.sender.lock().await.send(Event::Kicked(id, reason.clone())).await.ok();
+                        server
+                            .sender
+                            .lock()
+                            .await
+                            .send(Event::Kicked(id, reason.clone()))
+                            .await
+                            .ok();
                         match Arc::try_unwrap(conn) {
                             Ok(conn) => conn.close(&reason).await,
-                            Err(conn) =>  conn.close_undefined().await,
+                            Err(conn) => conn.close_undefined().await,
                         }
                     } else {
-                        Err(WsError::Io(io::Error::new(io::ErrorKind::NotFound, "connection not found")))
+                        Err(WsError::Io(io::Error::new(
+                            io::ErrorKind::NotFound,
+                            "connection not found",
+                        )))
                     }
                 }));
             }

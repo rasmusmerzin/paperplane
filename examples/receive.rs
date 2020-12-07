@@ -1,5 +1,5 @@
 use async_std::task;
-use paperplane::{Server, Event};
+use paperplane::{Event, Server};
 
 fn main() {
     let server = Server::new();
@@ -27,13 +27,16 @@ fn main() {
                     }
                     Ok("kickthem") => {
                         println!("{} kicked others", id);
-                        server.kick_map(|conn_id| match conn_id == id {
-                            true => None,
-                            false => Some("kickthem".into()),
-                        }).await.ok();
+                        server
+                            .kick_map(|conn_id| match conn_id == id {
+                                true => None,
+                                false => Some("kickthem".into()),
+                            })
+                            .await
+                            .ok();
                     }
                     _ => println!("{} sent '{}'", id, msg),
-                }
+                },
             }
         }
     });
