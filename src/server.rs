@@ -14,7 +14,7 @@ pub struct Server {
     sender: Mutex<UnboundedSender<Event>>,
     receiver: Mutex<UnboundedReceiver<Event>>,
     connection_seq: Mutex<Wrapping<Id>>,
-    connections: RwLock<HashMap<Id, (Arc<Connection>, task::JoinHandle<()>)>>,
+    connections: RwLock<HashMap<Id, (Arc<Connection<TcpStream>>, task::JoinHandle<()>)>>,
     listeners: RwLock<Vec<task::JoinHandle<()>>>,
 }
 
@@ -30,7 +30,7 @@ impl Server {
         })
     }
 
-    pub async fn add(self: &Arc<Self>, stream: TcpStream) -> WsResult<Id> {
+    pub async fn accept(self: &Arc<Self>, stream: TcpStream) -> WsResult<Id> {
         let conn = Arc::new(Connection::accept(stream).await?);
 
         let conn_id;
@@ -91,7 +91,7 @@ impl Server {
             while let Ok((stream, _)) = listener.accept().await {
                 let server = server.clone();
                 task::spawn(async move {
-                    server.add(stream).await.ok();
+                    server.accept(stream).await.ok();
                 });
             }
         }));
@@ -115,13 +115,9 @@ impl Server {
     }
 
     pub async fn send(&self, id: Id, msg: Message) -> WsResult<()> {
-        if let Some((conn, _)) = self.connections.read().await.get(&id) {
-            conn.send(msg).await
-        } else {
-            Err(WsError::Io(io::Error::new(
-                io::ErrorKind::NotFound,
-                "connection not found",
-            )))
+        match self.connections.read().await.get(&id) {
+            Some((conn, _)) => conn.send(msg).await,
+            None => Err(WsError::Io(io::ErrorKind::NotFound.into())),
         }
     }
 
@@ -155,23 +151,21 @@ impl Server {
     }
 
     pub async fn kick(&self, id: Id, reason: &str) -> WsResult<()> {
-        if let Some((conn, task)) = self.connections.write().await.remove(&id) {
-            task.cancel().await;
-            self.sender
-                .lock()
-                .await
-                .send(Event::Kicked(id, reason.into()))
-                .await
-                .ok();
-            match Arc::try_unwrap(conn) {
-                Ok(conn) => conn.close(reason).await,
-                Err(conn) => conn.close_undefined().await,
+        match self.connections.write().await.remove(&id) {
+            Some((conn, task)) => {
+                task.cancel().await;
+                self.sender
+                    .lock()
+                    .await
+                    .send(Event::Kicked(id, reason.into()))
+                    .await
+                    .ok();
+                match Arc::try_unwrap(conn) {
+                    Ok(conn) => conn.close(reason).await,
+                    Err(conn) => conn.close_undefined().await,
+                }
             }
-        } else {
-            Err(WsError::Io(io::Error::new(
-                io::ErrorKind::NotFound,
-                "connection not found",
-            )))
+            None => Err(WsError::Io(io::ErrorKind::NotFound.into())),
         }
     }
 
@@ -209,24 +203,22 @@ impl Server {
             if let Some(reason) = map(id) {
                 let server = self.clone();
                 tasks.push(task::spawn(async move {
-                    if let Some((conn, task)) = server.connections.write().await.remove(&id) {
-                        task.cancel().await;
-                        server
-                            .sender
-                            .lock()
-                            .await
-                            .send(Event::Kicked(id, reason.clone()))
-                            .await
-                            .ok();
-                        match Arc::try_unwrap(conn) {
-                            Ok(conn) => conn.close(&reason).await,
-                            Err(conn) => conn.close_undefined().await,
+                    match server.connections.write().await.remove(&id) {
+                        Some((conn, task)) => {
+                            task.cancel().await;
+                            server
+                                .sender
+                                .lock()
+                                .await
+                                .send(Event::Kicked(id, reason.clone()))
+                                .await
+                                .ok();
+                            match Arc::try_unwrap(conn) {
+                                Ok(conn) => conn.close(&reason).await,
+                                Err(conn) => conn.close_undefined().await,
+                            }
                         }
-                    } else {
-                        Err(WsError::Io(io::Error::new(
-                            io::ErrorKind::NotFound,
-                            "connection not found",
-                        )))
+                        None => Err(WsError::Io(io::ErrorKind::NotFound.into())),
                     }
                 }));
             }

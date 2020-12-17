@@ -1,5 +1,5 @@
 use crate::{Message, WsError, WsResult};
-use async_std::net::TcpStream;
+use async_std::io::{Read, Write};
 use async_std::sync::Mutex;
 use async_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use async_tungstenite::tungstenite::protocol::CloseFrame;
@@ -8,13 +8,16 @@ use futures::sink::SinkExt;
 use futures::stream::{SplitSink, SplitStream, StreamExt};
 use std::io;
 
-pub struct Connection {
-    sender: Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>,
-    receiver: Mutex<SplitStream<WebSocketStream<TcpStream>>>,
+pub struct Connection<S> {
+    sender: Mutex<SplitSink<WebSocketStream<S>, Message>>,
+    receiver: Mutex<SplitStream<WebSocketStream<S>>>,
 }
 
-impl Connection {
-    pub async fn accept(stream: TcpStream) -> WsResult<Self> {
+impl<S> Connection<S>
+where
+    S: Read + Write + Unpin,
+{
+    pub async fn accept(stream: S) -> WsResult<Self> {
         let (sender, receiver) = accept_async(stream).await?.split();
         Ok(Self {
             sender: Mutex::new(sender),
@@ -43,10 +46,7 @@ impl Connection {
                 }))
                 .await
             }
-            Err(_) => Err(WsError::Io(io::Error::new(
-                io::ErrorKind::BrokenPipe,
-                "could not join websocket sender & receiver",
-            ))),
+            Err(_) => Err(WsError::Io(io::ErrorKind::BrokenPipe.into())),
         }
     }
 }
