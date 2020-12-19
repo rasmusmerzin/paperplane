@@ -68,6 +68,5 @@ See [examples folder](./examples) for more examples.
 
 ## Should Add
 
-- documentation
 - option to automatically close inactive connections
-- option to not accept connections depending on their socket address (dynamic deny list)
+- option to not accept connections depending on their address (dynamic deny list)

@@ -1,10 +1,15 @@
 use super::{Id, Message};
 
+/// An enum representing server events.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Event {
+    /// New connection created with the id.
     Connected(Id),
+    /// Connection with the id closed by client.
     Disconnected(Id),
+    /// Connection with the id closed by the server with the reason.
     Kicked(Id, String),
+    /// Message sent by a client with the connection id.
     Message(Id, Message),
 }
 
