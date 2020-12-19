@@ -132,16 +132,7 @@ fn close() -> WsResult<()> {
     task::block_on(async {
         let (server, clients) = base(8010, 4).await?;
 
-        assert_eq!(server.listener_count().await, 1);
-        server.listen(format!("{}:{}", LOCALHOST, 8011)).await?;
-        assert_eq!(server.listener_count().await, 2);
-        server.listen(format!("{}:{}", LOCALHOST, 8012)).await?;
-        assert_eq!(server.listener_count().await, 3);
-        server.listen(format!("{}:{}", LOCALHOST, 8013)).await?;
-        assert_eq!(server.listener_count().await, 4);
-
         server.close().await?;
-        assert_eq!(server.listener_count().await, 0);
 
         for mut client in clients {
             assert_eq!(

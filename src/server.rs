@@ -10,15 +10,17 @@ use std::collections::HashMap;
 use std::io;
 use std::num::Wrapping;
 
+/// A TCP WebSocket Server.
 pub struct Server {
     sender: Mutex<UnboundedSender<Event>>,
     receiver: Mutex<UnboundedReceiver<Event>>,
     connection_seq: Mutex<Wrapping<Id>>,
     connections: RwLock<HashMap<Id, (Arc<Connection<TcpStream>>, task::JoinHandle<()>)>>,
-    listeners: RwLock<Vec<task::JoinHandle<()>>>,
+    listeners: Mutex<Vec<task::JoinHandle<()>>>,
 }
 
 impl Server {
+    /// Create a new `Server` instance. Returns `Arc<Server>` for convenience.
     pub fn new() -> Arc<Self> {
         let (sender, receiver) = unbounded();
         Arc::new(Self {
@@ -26,10 +28,11 @@ impl Server {
             receiver: Mutex::new(receiver),
             connection_seq: Mutex::new(Wrapping(Id::MIN)),
             connections: RwLock::new(HashMap::new()),
-            listeners: RwLock::new(vec![]),
+            listeners: Mutex::new(vec![]),
         })
     }
 
+    /// Accept given TcpStream as a WebSocket connection.
     pub async fn accept(self: &Arc<Self>, stream: TcpStream) -> WsResult<Id> {
         let conn = Arc::new(Connection::accept(stream).await?);
 
@@ -84,10 +87,11 @@ impl Server {
         Ok(conn_id.0)
     }
 
+    /// Start listening on given socket address.
     pub async fn listen<A: ToSocketAddrs>(self: &Arc<Self>, addr: A) -> io::Result<()> {
         let listener = TcpListener::bind(addr).await?;
         let server = self.clone();
-        self.listeners.write().await.push(task::spawn(async move {
+        self.listeners.lock().await.push(task::spawn(async move {
             while let Ok((stream, _)) = listener.accept().await {
                 let server = server.clone();
                 task::spawn(async move {
@@ -98,22 +102,21 @@ impl Server {
         Ok(())
     }
 
-    pub async fn listener_count(self: &Arc<Self>) -> usize {
-        self.listeners.read().await.len()
-    }
-
+    /// Close all connections and stop all listeners.
     pub async fn close(self: &Arc<Self>) -> WsResult<()> {
-        let mut listeners = self.listeners.write().await;
+        let mut listeners = self.listeners.lock().await;
         while let Some(task) = listeners.pop() {
             task.cancel().await;
         }
         self.kick_all("server closed".into()).await
     }
 
+    /// Get next server event.
     pub async fn next(&self) -> Option<Event> {
         self.receiver.lock().await.next().await
     }
 
+    /// Send a message to a connection with the given id.
     pub async fn send(&self, id: Id, msg: Message) -> WsResult<()> {
         match self.connections.read().await.get(&id) {
             Some((conn, _)) => conn.send(msg).await,
@@ -121,6 +124,7 @@ impl Server {
         }
     }
 
+    /// Send a message to all current connections.
     pub async fn send_all(&self, msg: Message) -> WsResult<()> {
         let mut tasks = vec![];
         for (conn, _) in self.connections.read().await.values() {
@@ -135,6 +139,7 @@ impl Server {
         result
     }
 
+    /// Loop through connections and send messages determined by the given closure.
     pub async fn send_map<F: Fn(Id) -> Option<Message>>(&self, map: F) -> WsResult<()> {
         let mut tasks = vec![];
         for (id, (conn, _)) in self.connections.read().await.iter() {
@@ -150,6 +155,7 @@ impl Server {
         result
     }
 
+    /// Close a connection with the given id and reason.
     pub async fn kick(&self, id: Id, reason: &str) -> WsResult<()> {
         match self.connections.write().await.remove(&id) {
             Some((conn, task)) => {
@@ -169,6 +175,7 @@ impl Server {
         }
     }
 
+    /// Close all current connections with the given reason.
     pub async fn kick_all(self: &Arc<Self>, reason: String) -> WsResult<()> {
         let mut tasks = vec![];
         for (id, (conn, task)) in self.connections.write().await.drain() {
@@ -196,6 +203,7 @@ impl Server {
         result
     }
 
+    /// Loop through connections and kick the ones for which's id the given closure returns a reason.
     pub async fn kick_map<F: Fn(Id) -> Option<String>>(self: &Arc<Self>, map: F) -> WsResult<()> {
         let mut tasks = vec![];
         for id in self.connections.read().await.keys() {
