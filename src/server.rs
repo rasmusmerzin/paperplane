@@ -176,11 +176,11 @@ impl Server {
     }
 
     /// Close all current connections with the given reason.
-    pub async fn kick_all(self: &Arc<Self>, reason: String) -> WsResult<()> {
+    pub async fn kick_all(self: &Arc<Self>, reason: &str) -> WsResult<()> {
         let mut tasks = vec![];
         for (id, (conn, task)) in self.connections.write().await.drain() {
             let server = self.clone();
-            let reason = reason.clone();
+            let reason = reason.to_string();
             tasks.push(task::spawn(async move {
                 task.cancel().await;
                 server

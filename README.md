@@ -1,26 +1,28 @@
 <div align="center">
-  <h1>
-    <img alt="logo" src="./logo/logo.svg" />
-    <br />
-    Paperplane
-  </h1>
-  <a href="https://gitlab.com/rasmusmerzin/paperplane/-/commits/master">
-    <img alt="build" src="https://img.shields.io/gitlab/pipeline/rasmusmerzin/paperplane/master" />
-  </a>
-  <a href="https://crates.io/crates/paperplane">
-    <img alt="version" src="https://img.shields.io/crates/v/paperplane?label=version" />
-  </a>
-  <a href="https://crates.io/crates/paperplane">
-    <img alt="license" src="https://img.shields.io/crates/l/paperplane?label=license" />
-  </a>
-  <p>
-    WebSocket library which utilizes
-    <a href="https://crates.io/crates/async-std">async-std</a>,
-    <a href="https://crates.io/crates/async-tungstenite">async-tungstenite</a> &
-    <a href="https://crates.io/crates/futures">futures</a>.
-    <br />
-    Currently it is a proof of concept.
-  </p>
+    <h1>
+        <img alt="logo" src="./logo/logo.svg" />
+        <br />
+        Paperplane
+    </h1>
+    <a href="https://gitlab.com/rasmusmerzin/paperplane/-/commits/master">
+        <img alt="build" src="https://img.shields.io/gitlab/pipeline/rasmusmerzin/paperplane/master" />
+    </a>
+    <a href="https://crates.io/crates/paperplane">
+        <img alt="license" src="https://img.shields.io/crates/l/paperplane" />
+    </a>
+    <a href="https://crates.io/crates/paperplane">
+        <img alt="version" src="https://img.shields.io/crates/v/paperplane" />
+    </a>
+    <a href="https://docs.rs/paperplane">
+        <img alt="documentation" src="https://img.shields.io/badge/docs.rs-paperplane-blue"/>
+    </a>
+    <p>
+        WebSocket library which utilizes
+        <a href="https://crates.io/crates/async-std">async-std</a>,
+        <a href="https://crates.io/crates/async-tungstenite">async-tungstenite</a> &
+        <a href="https://crates.io/crates/futures">futures</a>.
+        <br />
+    </p>
 </div>
 
 ## Example
