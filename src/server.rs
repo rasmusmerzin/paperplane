@@ -93,11 +93,14 @@ impl Server {
         let listener = TcpListener::bind(addr).await?;
         let server = self.clone();
         self.listeners.lock().await.push(task::spawn(async move {
-            while let Ok((stream, _)) = listener.accept().await {
-                let server = server.clone();
-                task::spawn(async move {
-                    server.accept(stream).await.ok();
-                });
+            let mut incoming = listener.incoming();
+            while let Some(stream) = incoming.next().await {
+                if let Ok(stream) = stream {
+                    let server = server.clone();
+                    task::spawn(async move {
+                        server.accept(stream).await.ok();
+                    });
+                }
             }
         }));
         Ok(())
