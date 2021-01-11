@@ -15,7 +15,7 @@ async fn base(
     count: usize,
 ) -> WsResult<(Arc<Server>, Vec<WebSocketStream<ConnectStream>>)> {
     let addr = format!("{}:{}", LOCALHOST, port);
-    let server = Server::new();
+    let server = Server::new(10);
     server.listen(&addr).await?;
 
     let mut clients = vec![];

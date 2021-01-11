@@ -1,4 +1,4 @@
-use super::{Id, Message};
+use crate::{Id, Message};
 
 /// An enum representing server events.
 #[derive(Debug, PartialEq, Clone)]

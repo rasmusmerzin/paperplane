@@ -29,12 +29,13 @@
 
 ```rust
 use async_std::task;
-use paperplane::{Event, Message, Server};
+use paperplane::{Message, Server};
 use std::time;
 
 fn main() {
-    let server = Server::new();
+    let server = Server::new(10);
 
+    // Send count to all connected clients each second
     {
         let server = server.clone();
         task::spawn(async move {
@@ -47,19 +48,11 @@ fn main() {
         });
     }
 
+    // Print messages sent by clients
     task::block_on(async {
         server.listen("0.0.0.0:8000").await.unwrap();
         while let Some(event) = server.next().await {
-            match event {
-                Event::Message(id, msg) => server
-                    .send_map(|conn_id| match conn_id == id {
-                        true => None,
-                        false => Some(msg.clone()),
-                    })
-                    .await
-                    .ok(),
-                _ => None,
-            };
+            println!("{:?}", event);
         }
     });
 }

@@ -2,7 +2,7 @@ use async_std::task;
 use paperplane::{Event, Message, Server};
 
 fn main() {
-    let server = Server::new();
+    let server = Server::new(10);
 
     task::block_on(async {
         server.listen("0.0.0.0:8000").await.unwrap();

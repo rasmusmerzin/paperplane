@@ -3,7 +3,7 @@ use crate::{Event, Id, Message, WsError, WsResult};
 use async_std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use async_std::sync::{Arc, Mutex, RwLock};
 use async_std::task;
-use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
+use futures::channel::mpsc::{channel, Receiver, Sender};
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
@@ -12,17 +12,18 @@ use std::num::Wrapping;
 
 /// A TCP WebSocket Server.
 pub struct Server {
-    sender: Mutex<UnboundedSender<Event>>,
-    receiver: Mutex<UnboundedReceiver<Event>>,
+    sender: Mutex<Sender<Event>>,
+    receiver: Mutex<Receiver<Event>>,
     connection_seq: Mutex<Wrapping<Id>>,
     connections: RwLock<HashMap<Id, (Arc<Connection<TcpStream>>, task::JoinHandle<()>)>>,
     listeners: Mutex<Vec<task::JoinHandle<()>>>,
 }
 
 impl Server {
-    /// Create a new `Server` instance. Returns `Arc<Server>` for convenience.
-    pub fn new() -> Arc<Self> {
-        let (sender, receiver) = unbounded();
+    /// Create a new `Server` instance. Takes channel capacity and returns `Arc<Server>` for convenience.
+    /// Channel is currently created with `futures::channel::mpsc::channel` but might be with `async_std::channel::bounded` in the future.
+    pub fn new(cap: usize) -> Arc<Self> {
+        let (sender, receiver) = channel(cap);
         Arc::new(Self {
             sender: Mutex::new(sender),
             receiver: Mutex::new(receiver),

@@ -1,9 +1,9 @@
 use crate::{Message, WsError, WsResult};
-use async_std::io::{Read, Write};
 use async_std::sync::Mutex;
 use async_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use async_tungstenite::tungstenite::protocol::CloseFrame;
 use async_tungstenite::{accept_async, WebSocketStream};
+use futures::io::{AsyncRead, AsyncWrite};
 use futures::sink::SinkExt;
 use futures::stream::{SplitSink, SplitStream, StreamExt};
 use std::io;
@@ -15,7 +15,7 @@ pub struct Connection<S> {
 
 impl<S> Connection<S>
 where
-    S: Read + Write + Unpin,
+    S: AsyncRead + AsyncWrite + Unpin,
 {
     pub async fn accept(stream: S) -> WsResult<Self> {
         let (sender, receiver) = accept_async(stream).await?.split();
