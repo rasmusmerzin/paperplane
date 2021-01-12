@@ -1,5 +1,6 @@
 use crate::connection::Connection;
-use crate::{Event, Id, Message, WsError, WsResult};
+use crate::tungstenite::{self, Message};
+use crate::{Event, Id};
 use async_std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use async_std::sync::{Arc, Mutex, RwLock};
 use async_std::task;
@@ -34,7 +35,7 @@ impl Server {
     }
 
     /// Accept given TcpStream as a WebSocket connection.
-    pub async fn accept(self: &Arc<Self>, stream: TcpStream) -> WsResult<Id> {
+    pub async fn accept(self: &Arc<Self>, stream: TcpStream) -> tungstenite::Result<Id> {
         let conn = Arc::new(Connection::accept(stream).await?);
 
         let conn_id;
@@ -107,7 +108,7 @@ impl Server {
     }
 
     /// Close all connections and stop all listeners.
-    pub async fn close(self: &Arc<Self>) -> WsResult<()> {
+    pub async fn close(self: &Arc<Self>) -> tungstenite::Result<()> {
         let mut listeners = self.listeners.lock().await;
         while let Some(task) = listeners.pop() {
             task.cancel().await;
@@ -121,15 +122,15 @@ impl Server {
     }
 
     /// Send a message to a connection with the given id.
-    pub async fn send(&self, id: Id, msg: Message) -> WsResult<()> {
+    pub async fn send(&self, id: Id, msg: Message) -> tungstenite::Result<()> {
         match self.connections.read().await.get(&id) {
             Some((conn, _)) => conn.send(msg).await,
-            None => Err(WsError::Io(io::ErrorKind::NotFound.into())),
+            None => Err(tungstenite::Error::Io(io::ErrorKind::NotFound.into())),
         }
     }
 
     /// Send a message to all current connections.
-    pub async fn send_all(&self, msg: Message) -> WsResult<()> {
+    pub async fn send_all(&self, msg: Message) -> tungstenite::Result<()> {
         let mut tasks = vec![];
         for (conn, _) in self.connections.read().await.values() {
             let msg = msg.clone();
@@ -144,7 +145,7 @@ impl Server {
     }
 
     /// Loop through connections and send messages determined by the given closure.
-    pub async fn send_map<F: Fn(Id) -> Option<Message>>(&self, map: F) -> WsResult<()> {
+    pub async fn send_map<F: Fn(Id) -> Option<Message>>(&self, map: F) -> tungstenite::Result<()> {
         let mut tasks = vec![];
         for (id, (conn, _)) in self.connections.read().await.iter() {
             if let Some(msg) = map(*id) {
@@ -160,7 +161,7 @@ impl Server {
     }
 
     /// Close a connection with the given id and reason.
-    pub async fn kick(&self, id: Id, reason: &str) -> WsResult<()> {
+    pub async fn kick(&self, id: Id, reason: &str) -> tungstenite::Result<()> {
         match self.connections.write().await.remove(&id) {
             Some((conn, task)) => {
                 task.cancel().await;
@@ -175,12 +176,12 @@ impl Server {
                     Err(conn) => conn.close_undefined().await,
                 }
             }
-            None => Err(WsError::Io(io::ErrorKind::NotFound.into())),
+            None => Err(tungstenite::Error::Io(io::ErrorKind::NotFound.into())),
         }
     }
 
     /// Close all current connections with the given reason.
-    pub async fn kick_all(self: &Arc<Self>, reason: &str) -> WsResult<()> {
+    pub async fn kick_all(self: &Arc<Self>, reason: &str) -> tungstenite::Result<()> {
         let mut tasks = vec![];
         for (id, (conn, task)) in self.connections.write().await.drain() {
             let server = self.clone();
@@ -208,7 +209,10 @@ impl Server {
     }
 
     /// Loop through connections and kick the ones for which's id the given closure returns a reason.
-    pub async fn kick_map<F: Fn(Id) -> Option<String>>(self: &Arc<Self>, map: F) -> WsResult<()> {
+    pub async fn kick_map<F: Fn(Id) -> Option<String>>(
+        self: &Arc<Self>,
+        map: F,
+    ) -> tungstenite::Result<()> {
         let mut tasks = vec![];
         for id in self.connections.read().await.keys() {
             let id = *id;
@@ -230,7 +234,7 @@ impl Server {
                                 Err(conn) => conn.close_undefined().await,
                             }
                         }
-                        None => Err(WsError::Io(io::ErrorKind::NotFound.into())),
+                        None => Err(tungstenite::Error::Io(io::ErrorKind::NotFound.into())),
                     }
                 }));
             }

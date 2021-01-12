@@ -6,14 +6,15 @@ use async_tungstenite::tungstenite::protocol::CloseFrame;
 use async_tungstenite::WebSocketStream;
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
-use paperplane::{Event, Message, Server, WsResult};
+use paperplane::tungstenite::{self, Message};
+use paperplane::{Event, Id, Server};
 
 const LOCALHOST: &str = "127.0.0.1";
 
 async fn base(
     port: usize,
     count: usize,
-) -> WsResult<(Arc<Server>, Vec<WebSocketStream<ConnectStream>>)> {
+) -> tungstenite::Result<(Arc<Server>, Vec<WebSocketStream<ConnectStream>>)> {
     let addr = format!("{}:{}", LOCALHOST, port);
     let server = Server::new(10);
     server.listen(&addr).await?;
@@ -21,14 +22,14 @@ async fn base(
     let mut clients = vec![];
     for i in 0..count {
         clients.push(connect_async(format!("ws://{}", addr)).await?.0);
-        assert_eq!(server.next().await, Some(Event::Connected(i)));
+        assert_eq!(server.next().await, Some(Event::Connected(i as Id)));
     }
 
     Ok((server, clients))
 }
 
 #[test]
-fn receive() -> WsResult<()> {
+fn receive() -> tungstenite::Result<()> {
     task::block_on(async {
         let (server, mut clients) = base(8001, 2).await?;
 
@@ -45,7 +46,7 @@ fn receive() -> WsResult<()> {
 }
 
 #[test]
-fn send() -> WsResult<()> {
+fn send() -> tungstenite::Result<()> {
     task::block_on(async {
         let (server, mut clients) = base(8002, 3).await?;
 
@@ -78,7 +79,7 @@ fn send() -> WsResult<()> {
 }
 
 #[test]
-fn disconnect() -> WsResult<()> {
+fn disconnect() -> tungstenite::Result<()> {
     task::block_on(async {
         let (server, mut clients) = base(8003, 4).await?;
 
@@ -128,7 +129,7 @@ fn disconnect() -> WsResult<()> {
 }
 
 #[test]
-fn close() -> WsResult<()> {
+fn close() -> tungstenite::Result<()> {
     task::block_on(async {
         let (server, clients) = base(8010, 4).await?;
 

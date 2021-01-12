@@ -1,4 +1,4 @@
-use crate::{Message, WsError, WsResult};
+use crate::tungstenite::{self, Message};
 use async_std::sync::Mutex;
 use async_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use async_tungstenite::tungstenite::protocol::CloseFrame;
@@ -17,7 +17,7 @@ impl<S> Connection<S>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    pub async fn accept(stream: S) -> WsResult<Self> {
+    pub async fn accept(stream: S) -> tungstenite::Result<Self> {
         let (sender, receiver) = accept_async(stream).await?.split();
         Ok(Self {
             sender: Mutex::new(sender),
@@ -25,19 +25,19 @@ where
         })
     }
 
-    pub async fn next(&self) -> Option<WsResult<Message>> {
+    pub async fn next(&self) -> Option<tungstenite::Result<Message>> {
         self.receiver.lock().await.next().await
     }
 
-    pub async fn send(&self, msg: Message) -> WsResult<()> {
+    pub async fn send(&self, msg: Message) -> tungstenite::Result<()> {
         self.sender.lock().await.send(msg).await
     }
 
-    pub async fn close_undefined(&self) -> WsResult<()> {
+    pub async fn close_undefined(&self) -> tungstenite::Result<()> {
         self.sender.lock().await.close().await
     }
 
-    pub async fn close(self, reason: &str) -> WsResult<()> {
+    pub async fn close(self, reason: &str) -> tungstenite::Result<()> {
         match self.sender.into_inner().reunite(self.receiver.into_inner()) {
             Ok(mut ws) => {
                 ws.close(Some(CloseFrame {
@@ -46,7 +46,7 @@ where
                 }))
                 .await
             }
-            Err(_) => Err(WsError::Io(io::ErrorKind::BrokenPipe.into())),
+            Err(_) => Err(tungstenite::Error::Io(io::ErrorKind::BrokenPipe.into())),
         }
     }
 }

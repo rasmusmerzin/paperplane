@@ -1,5 +1,6 @@
 use async_std::task;
-use paperplane::{Event, Message, Server};
+use paperplane::tungstenite::Message;
+use paperplane::{Event, Server};
 
 fn main() {
     let server = Server::new(10);

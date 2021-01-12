@@ -29,7 +29,8 @@
 
 ```rust
 use async_std::task;
-use paperplane::{Message, Server};
+use paperplane::tungstenite::Message;
+use paperplane::Server;
 use std::time;
 
 fn main() {

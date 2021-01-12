@@ -1,4 +1,5 @@
-use crate::{Id, Message};
+use crate::tungstenite::Message;
+use crate::Id;
 
 /// An enum representing server events.
 #[derive(Debug, PartialEq, Clone)]
