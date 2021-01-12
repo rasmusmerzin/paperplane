@@ -6,6 +6,3 @@ pub use event::Event;
 pub use server::Server;
 
 pub use async_tungstenite::tungstenite;
-
-/// Connection id type.
-pub type Id = u64;

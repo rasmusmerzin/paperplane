@@ -7,7 +7,7 @@ use async_tungstenite::WebSocketStream;
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use paperplane::tungstenite::{self, Message};
-use paperplane::{Event, Id, Server};
+use paperplane::{Event, Server};
 
 const LOCALHOST: &str = "127.0.0.1";
 
@@ -22,7 +22,7 @@ async fn base(
     let mut clients = vec![];
     for i in 0..count {
         clients.push(connect_async(format!("ws://{}", addr)).await?.0);
-        assert_eq!(server.next().await, Some(Event::Connected(i as Id)));
+        assert_eq!(server.next().await, Some(Event::Connected(i as u128)));
     }
 
     Ok((server, clients))

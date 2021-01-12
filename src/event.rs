@@ -1,17 +1,16 @@
 use crate::tungstenite::Message;
-use crate::Id;
 
 /// An enum representing server events.
 #[derive(Debug, PartialEq, Clone)]
 pub enum Event {
     /// New connection created with the id.
-    Connected(Id),
+    Connected(u128),
     /// Connection with the id closed by client.
-    Disconnected(Id),
+    Disconnected(u128),
     /// Connection with the id closed by the server with the reason.
-    Kicked(Id, String),
+    Kicked(u128, String),
     /// Message sent by a client with the connection id.
-    Message(Id, Message),
+    Message(u128, Message),
 }
 
 impl Event {
