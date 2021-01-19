@@ -157,7 +157,7 @@ fn close() -> tungstenite::Result<()> {
 #[test]
 fn state() -> tungstenite::Result<()> {
     task::block_on(async {
-        let (server, _) = base(8005, 4).await?;
+        let (server, _clients) = base(8005, 4).await?;
         for i in 0..4 {
             assert_eq!(server.get_session(i).await.unwrap().txt, "");
         }
