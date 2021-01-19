@@ -1,20 +1,25 @@
 use async_std::sync::Arc;
 use async_std::task;
 use async_tungstenite::async_std::{connect_async, ConnectStream};
-use async_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
-use async_tungstenite::tungstenite::protocol::CloseFrame;
 use async_tungstenite::WebSocketStream;
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
+use paperplane::tungstenite::protocol::frame::coding::CloseCode;
+use paperplane::tungstenite::protocol::CloseFrame;
 use paperplane::tungstenite::{self, Message};
 use paperplane::{Event, Server};
 
 const LOCALHOST: &str = "127.0.0.1";
 
+#[derive(Default)]
+struct Session {
+    txt: String,
+}
+
 async fn base(
     port: usize,
     count: usize,
-) -> tungstenite::Result<(Arc<Server>, Vec<WebSocketStream<ConnectStream>>)> {
+) -> tungstenite::Result<(Arc<Server<Session>>, Vec<WebSocketStream<ConnectStream>>)> {
     let addr = format!("{}:{}", LOCALHOST, port);
     let server = Server::new(10);
     server.listen(&addr).await?;
@@ -131,7 +136,7 @@ fn disconnect() -> tungstenite::Result<()> {
 #[test]
 fn close() -> tungstenite::Result<()> {
     task::block_on(async {
-        let (server, clients) = base(8010, 4).await?;
+        let (server, clients) = base(8004, 4).await?;
 
         server.close().await?;
 
@@ -145,6 +150,33 @@ fn close() -> tungstenite::Result<()> {
             );
         }
 
+        Ok(())
+    })
+}
+
+#[test]
+fn state() -> tungstenite::Result<()> {
+    task::block_on(async {
+        let (server, _) = base(8005, 4).await?;
+        for i in 0..4 {
+            assert_eq!(server.get_session(i).await.unwrap().txt, "");
+        }
+        for i in 0..4 {
+            server.set_session(i, Session { txt: i.to_string() }).await;
+        }
+        for i in 0..4 {
+            assert_eq!(server.get_session(i).await.unwrap().txt, i.to_string());
+        }
+        for i in 0..4 {
+            assert_eq!(
+                server
+                    .find_session(|sess| sess.txt == i.to_string())
+                    .await
+                    .unwrap()
+                    .0,
+                i
+            );
+        }
         Ok(())
     })
 }

@@ -11,16 +11,21 @@ use std::collections::HashMap;
 use std::io;
 
 /// A TCP WebSocket Server.
-pub struct Server {
+pub struct Server<Session> {
     sender: Mutex<Sender<Event>>,
     receiver: Mutex<Receiver<Event>>,
     connection_seq: Mutex<u128>,
     connections: RwLock<HashMap<u128, (Arc<Connection<TcpStream>>, task::JoinHandle<()>)>>,
+    sessions: RwLock<HashMap<u128, Arc<Session>>>,
     listeners: Mutex<Vec<task::JoinHandle<()>>>,
 }
 
-impl Server {
+impl<Session> Server<Session>
+where
+    Session: Default + Send + Sync + 'static,
+{
     /// Create a new `Server` instance. Takes channel capacity and returns `Arc<Server>` for convenience.
+    ///
     /// Channel is currently created with `futures::channel::mpsc::channel` but might be with `async_std::channel::bounded` in the future.
     pub fn new(cap: usize) -> Arc<Self> {
         let (sender, receiver) = channel(cap);
@@ -29,6 +34,7 @@ impl Server {
             receiver: Mutex::new(receiver),
             connection_seq: Mutex::new(0),
             connections: RwLock::new(HashMap::new()),
+            sessions: RwLock::new(HashMap::new()),
             listeners: Mutex::new(vec![]),
         })
     }
@@ -64,9 +70,8 @@ impl Server {
                             }
                         }
                     }
-
                     server.connections.write().await.remove(&conn_id);
-
+                    server.sessions.write().await.remove(&conn_id);
                     server
                         .sender
                         .lock()
@@ -77,6 +82,11 @@ impl Server {
                 }),
             ),
         );
+
+        self.sessions
+            .write()
+            .await
+            .insert(conn_id, Arc::new(Session::default()));
 
         self.sender
             .lock()
@@ -89,7 +99,10 @@ impl Server {
     }
 
     /// Start listening on given socket address.
-    pub async fn listen<A: ToSocketAddrs>(self: &Arc<Self>, addr: A) -> io::Result<()> {
+    pub async fn listen<A>(self: &Arc<Self>, addr: A) -> io::Result<()>
+    where
+        A: ToSocketAddrs,
+    {
         let listener = TcpListener::bind(addr).await?;
         let server = self.clone();
         self.listeners.lock().await.push(task::spawn(async move {
@@ -144,10 +157,10 @@ impl Server {
     }
 
     /// Loop through connections and send messages determined by the given closure.
-    pub async fn send_map<F: Fn(u128) -> Option<Message>>(
-        &self,
-        map: F,
-    ) -> tungstenite::Result<()> {
+    pub async fn send_map<F>(&self, map: F) -> tungstenite::Result<()>
+    where
+        F: Fn(u128) -> Option<Message>,
+    {
         let mut tasks = vec![];
         for (id, (conn, _)) in self.connections.read().await.iter() {
             if let Some(msg) = map(*id) {
@@ -211,10 +224,10 @@ impl Server {
     }
 
     /// Loop through connections and kick the ones for which's id the given closure returns a reason.
-    pub async fn kick_map<F: Fn(u128) -> Option<String>>(
-        self: &Arc<Self>,
-        map: F,
-    ) -> tungstenite::Result<()> {
+    pub async fn kick_map<F>(self: &Arc<Self>, map: F) -> tungstenite::Result<()>
+    where
+        F: Fn(u128) -> Option<String>,
+    {
         let mut tasks = vec![];
         for id in self.connections.read().await.keys() {
             let id = *id;
@@ -246,5 +259,35 @@ impl Server {
             result = result.and(task.await);
         }
         result
+    }
+
+    /// Get session by connection id.
+    pub async fn get_session(&self, id: u128) -> Option<Arc<Session>> {
+        self.sessions.read().await.get(&id).map(|sess| sess.clone())
+    }
+
+    /// Set session by connection id and return the previous session.
+    ///
+    /// **NOTE:** Allows creating a session for an id which has no connection and thus will not be cleaned up.
+    pub async fn set_session<T>(&self, id: u128, state: T) -> Option<Arc<Session>>
+    where
+        T: Into<Arc<Session>>,
+    {
+        self.sessions.write().await.insert(id, state.into())
+    }
+
+    /// Find first connection id and session pair that matches given predicate.
+    pub async fn find_session<F>(&self, predicate: F) -> Option<(u128, Arc<Session>)>
+    where
+        F: Fn(&Session) -> bool,
+    {
+        self.sessions
+            .read()
+            .await
+            .iter()
+            .find_map(|(id, sess)| match predicate(sess) {
+                true => Some((*id, sess.clone())),
+                false => None,
+            })
     }
 }
