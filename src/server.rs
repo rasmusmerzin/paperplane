@@ -1,11 +1,10 @@
 use crate::connection::Connection;
 use crate::tungstenite::{self, Message};
 use crate::Event;
+use async_std::channel::{bounded, Receiver, Sender};
 use async_std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use async_std::sync::{Arc, Mutex, RwLock};
 use async_std::task;
-use futures::channel::mpsc::{channel, Receiver, Sender};
-use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
 use std::io;
@@ -24,11 +23,11 @@ impl<Session> Server<Session>
 where
     Session: Default + Clone + Send + Sync + 'static,
 {
-    /// Create a new `Server` instance. Takes channel capacity and returns `Arc<Server>` for convenience.
-    ///
-    /// Channel is currently created with `futures::channel::mpsc::channel` but might be with `async_std::channel::bounded` in the future.
+    /// Create a new `Server` instance.
+    /// Takes capacity for [channel](https://docs.rs/async-std/1.9.0/async_std/channel/fn.bounded.html)
+    /// and returns `Arc<Server>` for convenience.
     pub fn new(cap: usize) -> Arc<Self> {
-        let (sender, receiver) = channel(cap);
+        let (sender, receiver) = bounded(cap);
         Arc::new(Self {
             sender: Mutex::new(sender),
             receiver: Mutex::new(receiver),

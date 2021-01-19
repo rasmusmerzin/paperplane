@@ -10,7 +10,7 @@ license = "MIT"
 keywords = ["websocket", "async"]
 
 [dependencies]
-async-std = "1"
+async-std = "1.9"
 async-tungstenite = "0.12"
 futures = "0.3"
 
