@@ -16,13 +16,13 @@ pub struct Server<Session> {
     receiver: Mutex<Receiver<Event>>,
     connection_seq: Mutex<u128>,
     connections: RwLock<HashMap<u128, (Arc<Connection<TcpStream>>, task::JoinHandle<()>)>>,
-    sessions: RwLock<HashMap<u128, Arc<Session>>>,
+    sessions: RwLock<HashMap<u128, Session>>,
     listeners: Mutex<Vec<task::JoinHandle<()>>>,
 }
 
 impl<Session> Server<Session>
 where
-    Session: Default + Send + Sync + 'static,
+    Session: Default + Clone + Send + Sync + 'static,
 {
     /// Create a new `Server` instance. Takes channel capacity and returns `Arc<Server>` for convenience.
     ///
@@ -86,7 +86,7 @@ where
         self.sessions
             .write()
             .await
-            .insert(conn_id, Arc::new(Session::default()));
+            .insert(conn_id, Session::default());
 
         self.sender
             .lock()
@@ -262,22 +262,21 @@ where
     }
 
     /// Get session by connection id.
-    pub async fn get_session(&self, id: u128) -> Option<Arc<Session>> {
+    pub async fn get_session(&self, id: u128) -> Option<Session> {
         self.sessions.read().await.get(&id).map(|sess| sess.clone())
     }
 
     /// Set session by connection id and return the previous session.
-    ///
-    /// **NOTE:** Allows creating a session for an id which has no connection and thus will not be cleaned up.
-    pub async fn set_session<T>(&self, id: u128, state: T) -> Option<Arc<Session>>
-    where
-        T: Into<Arc<Session>>,
-    {
-        self.sessions.write().await.insert(id, state.into())
+    pub async fn set_session(&self, id: u128, state: Session) -> io::Result<Session> {
+        let mut sess_write = self.sessions.write().await;
+        match sess_write.contains_key(&id) {
+            true => Ok(sess_write.insert(id, state.into()).unwrap()),
+            false => Err(io::ErrorKind::NotFound.into()),
+        }
     }
 
     /// Find first connection id and session pair that matches given predicate.
-    pub async fn find_session<F>(&self, predicate: F) -> Option<(u128, Arc<Session>)>
+    pub async fn find_session<F>(&self, predicate: F) -> Option<(u128, Session)>
     where
         F: Fn(&Session) -> bool,
     {
@@ -289,5 +288,18 @@ where
                 true => Some((*id, sess.clone())),
                 false => None,
             })
+    }
+
+    /// Replace session for connection id with given predicate.
+    pub async fn replace_session<F>(&self, id: u128, predicate: F) -> io::Result<()>
+    where
+        F: Fn(&Session) -> Session,
+    {
+        self.sessions
+            .write()
+            .await
+            .get_mut(&id)
+            .map(|sess| *sess = predicate(sess))
+            .ok_or(io::ErrorKind::NotFound.into())
     }
 }

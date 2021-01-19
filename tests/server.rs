@@ -11,7 +11,7 @@ use paperplane::{Event, Server};
 
 const LOCALHOST: &str = "127.0.0.1";
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct Session {
     txt: String,
 }
@@ -162,7 +162,10 @@ fn state() -> tungstenite::Result<()> {
             assert_eq!(server.get_session(i).await.unwrap().txt, "");
         }
         for i in 0..4 {
-            server.set_session(i, Session { txt: i.to_string() }).await;
+            server
+                .set_session(i, Session { txt: i.to_string() })
+                .await
+                .unwrap();
         }
         for i in 0..4 {
             assert_eq!(server.get_session(i).await.unwrap().txt, i.to_string());
@@ -175,6 +178,20 @@ fn state() -> tungstenite::Result<()> {
                     .unwrap()
                     .0,
                 i
+            );
+        }
+        for i in 0..4 {
+            server
+                .replace_session(i, |sess| Session {
+                    txt: format!("{}{0}", sess.txt),
+                })
+                .await
+                .unwrap();
+        }
+        for i in 0..4 {
+            assert_eq!(
+                server.get_session(i).await.unwrap().txt,
+                format!("{}{0}", i)
             );
         }
         Ok(())
