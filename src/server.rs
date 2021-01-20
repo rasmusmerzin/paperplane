@@ -25,7 +25,7 @@ where
 {
     /// Create a new `Server` instance.
     /// Takes capacity for [channel](https://docs.rs/async-std/1.9.0/async_std/channel/fn.bounded.html)
-    /// and returns `Arc<Server>` for convenience.
+    /// and return `Arc<Server>` for convenience.
     pub fn new(cap: usize) -> Arc<Self> {
         let (sender, receiver) = bounded(cap);
         Arc::new(Self {
@@ -274,7 +274,20 @@ where
         }
     }
 
-    /// Find first connection id and session pair that matches given predicate.
+    /// Replace session for connection id with given predicate.
+    pub async fn update_session<F>(&self, id: u128, mut predicate: F) -> io::Result<()>
+    where
+        F: FnMut(&Session) -> Session,
+    {
+        self.sessions
+            .write()
+            .await
+            .get_mut(&id)
+            .map(|sess| *sess = predicate(sess))
+            .ok_or(io::ErrorKind::NotFound.into())
+    }
+
+    /// Find the first connection id and session pair that matches given predicate.
     pub async fn find_session<F>(&self, predicate: F) -> Option<(u128, Session)>
     where
         F: Fn(&Session) -> bool,
@@ -289,16 +302,18 @@ where
             })
     }
 
-    /// Replace session for connection id with given predicate.
-    pub async fn replace_session<F>(&self, id: u128, predicate: F) -> io::Result<()>
+    /// Update the first pair that the given predicate returns some for.
+    pub async fn find_and_update_session<F>(&self, mut predicate: F) -> io::Result<()>
     where
-        F: Fn(&Session) -> Session,
+        F: FnMut(u128, &Session) -> Option<Session>,
     {
-        self.sessions
-            .write()
-            .await
-            .get_mut(&id)
-            .map(|sess| *sess = predicate(sess))
+        let mut sess_w = self.sessions.write().await;
+        sess_w
+            .iter()
+            .find_map(|(id, sess)| predicate(*id, sess).map(|sess| (*id, sess)))
+            .map(|(id, new_sess)| {
+                sess_w.insert(id, new_sess);
+            })
             .ok_or(io::ErrorKind::NotFound.into())
     }
 }

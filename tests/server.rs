@@ -11,7 +11,7 @@ use paperplane::{Event, Server};
 
 const LOCALHOST: &str = "127.0.0.1";
 
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 struct Session {
     txt: String,
 }
@@ -158,42 +158,59 @@ fn close() -> tungstenite::Result<()> {
 fn state() -> tungstenite::Result<()> {
     task::block_on(async {
         let (server, _clients) = base(8005, 4).await?;
+
         for i in 0..4 {
             assert_eq!(server.get_session(i).await.unwrap().txt, "");
         }
         for i in 0..4 {
+            let mut new_sess = None;
             server
-                .set_session(i, Session { txt: i.to_string() })
-                .await
-                .unwrap();
-        }
-        for i in 0..4 {
-            assert_eq!(server.get_session(i).await.unwrap().txt, i.to_string());
-        }
-        for i in 0..4 {
-            assert_eq!(
-                server
-                    .find_session(|sess| sess.txt == i.to_string())
-                    .await
-                    .unwrap()
-                    .0,
-                i
-            );
-        }
-        for i in 0..4 {
-            server
-                .replace_session(i, |sess| Session {
-                    txt: format!("{}{0}", sess.txt),
+                .update_session(i, |_| {
+                    let sess = Session { txt: i.to_string() };
+                    new_sess = Some(sess.clone());
+                    sess
                 })
                 .await
                 .unwrap();
+            assert_eq!(new_sess, Some(Session { txt: i.to_string() }));
         }
         for i in 0..4 {
             assert_eq!(
-                server.get_session(i).await.unwrap().txt,
-                format!("{}{0}", i)
+                server.get_session(i).await,
+                Some(Session { txt: i.to_string() })
             );
         }
+        for i in 0..4 {
+            assert_eq!(
+                server.find_session(|sess| sess.txt == i.to_string()).await,
+                Some((i, Session { txt: i.to_string() }))
+            );
+        }
+        for i in 0..4 {
+            let mut old_sess = None;
+            server
+                .find_and_update_session(|_, sess| match sess.txt == i.to_string() {
+                    true => {
+                        old_sess = Some(sess.clone());
+                        Some(Session {
+                            txt: format!("{}{0}", sess.txt),
+                        })
+                    }
+                    false => None,
+                })
+                .await
+                .unwrap();
+            assert_eq!(old_sess, Some(Session { txt: i.to_string() }));
+        }
+        for i in 0..4 {
+            assert_eq!(
+                server.get_session(i).await,
+                Some(Session {
+                    txt: format!("{}{0}", i)
+                })
+            );
+        }
+
         Ok(())
     })
 }
