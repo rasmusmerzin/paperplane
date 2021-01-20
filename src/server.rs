@@ -25,7 +25,7 @@ where
 {
     /// Create a new `Server` instance.
     /// Takes capacity for [channel](https://docs.rs/async-std/1.9.0/async_std/channel/fn.bounded.html)
-    /// and return `Arc<Server>` for convenience.
+    /// and returns `Arc<Server>` for convenience.
     pub fn new(cap: usize) -> Arc<Self> {
         let (sender, receiver) = bounded(cap);
         Arc::new(Self {
