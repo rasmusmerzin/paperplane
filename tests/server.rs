@@ -18,7 +18,7 @@ struct Session {
 
 async fn base(
     port: usize,
-    count: usize,
+    count: u128,
 ) -> tungstenite::Result<(Arc<Server<Session>>, Vec<WebSocketStream<ConnectStream>>)> {
     let addr = format!("{}:{}", LOCALHOST, port);
     let server = Server::new(10);
@@ -27,7 +27,7 @@ async fn base(
     let mut clients = vec![];
     for i in 0..count {
         clients.push(connect_async(format!("ws://{}", addr)).await?.0);
-        assert_eq!(server.next().await, Some(Event::Connected(i as u128)));
+        assert_eq!(server.next().await, Some(Event::Connected(i)));
     }
 
     Ok((server, clients))
@@ -157,12 +157,13 @@ fn close() -> tungstenite::Result<()> {
 #[test]
 fn state() -> tungstenite::Result<()> {
     task::block_on(async {
-        let (server, _clients) = base(8005, 4).await?;
+        let count = 4u128;
+        let (server, _clients) = base(8005, count).await?;
 
-        for i in 0..4 {
-            assert_eq!(server.get_session(i).await.unwrap().txt, "");
+        for i in 0..count {
+            assert_eq!(server.get_session(i).await, Some(Session::default()));
         }
-        for i in 0..4 {
+        for i in 0..count {
             let mut new_sess = None;
             server
                 .update_session(i, |_| {
@@ -174,19 +175,19 @@ fn state() -> tungstenite::Result<()> {
                 .unwrap();
             assert_eq!(new_sess, Some(Session { txt: i.to_string() }));
         }
-        for i in 0..4 {
+        for i in 0..count {
             assert_eq!(
                 server.get_session(i).await,
                 Some(Session { txt: i.to_string() })
             );
         }
-        for i in 0..4 {
+        for i in 0..count {
             assert_eq!(
                 server.find_session(|sess| sess.txt == i.to_string()).await,
                 Some((i, Session { txt: i.to_string() }))
             );
         }
-        for i in 0..4 {
+        for i in 0..count {
             let mut old_sess = None;
             server
                 .find_and_update_session(|_, sess| match sess.txt == i.to_string() {
@@ -202,7 +203,7 @@ fn state() -> tungstenite::Result<()> {
                 .unwrap();
             assert_eq!(old_sess, Some(Session { txt: i.to_string() }));
         }
-        for i in 0..4 {
+        for i in 0..count {
             assert_eq!(
                 server.get_session(i).await,
                 Some(Session {
@@ -234,7 +235,7 @@ fn state() -> tungstenite::Result<()> {
                 .await,
             2
         );
-        for i in 0..4 {
+        for i in 0..count {
             assert_eq!(
                 server.get_session(i).await,
                 Some(Session {
@@ -244,6 +245,60 @@ fn state() -> tungstenite::Result<()> {
                     }
                 })
             );
+        }
+
+        Ok(())
+    })
+}
+
+#[test]
+fn state_cleanup() -> tungstenite::Result<()> {
+    task::block_on(async {
+        let (server, mut clients) = base(8006, 8).await?;
+
+        for i in 0..2 {
+            clients[i].close(None).await?;
+            assert_eq!(server.next().await, Some(Event::Disconnected(i as u128)));
+        }
+
+        {
+            let mut sessions = server.filter_sessions(|_| true).await;
+            sessions.sort_unstable_by_key(|(id, _)| *id);
+            let (ids, _): (Vec<_>, Vec<_>) = sessions.iter().cloned().unzip();
+            assert_eq!(ids, &[2, 3, 4, 5, 6, 7]);
+        }
+
+        server.kick(2, "").await?;
+        server.kick(3, "").await?;
+
+        {
+            let mut sessions = server.filter_sessions(|_| true).await;
+            sessions.sort_unstable_by_key(|(id, _)| *id);
+            let (ids, _): (Vec<_>, Vec<_>) = sessions.iter().cloned().unzip();
+            assert_eq!(ids, &[4, 5, 6, 7]);
+        }
+
+        server
+            .kick_map(|id| match id {
+                6 | 7 => Some("".into()),
+                _ => None,
+            })
+            .await?;
+
+        {
+            let mut sessions = server.filter_sessions(|_| true).await;
+            sessions.sort_unstable_by_key(|(id, _)| *id);
+            let (ids, _): (Vec<_>, Vec<_>) = sessions.iter().cloned().unzip();
+            assert_eq!(ids, &[4, 5]);
+        }
+
+        server.kick_all("").await?;
+
+        {
+            let mut sessions = server.filter_sessions(|_| true).await;
+            sessions.sort_unstable_by_key(|(id, _)| *id);
+            let (ids, _): (Vec<_>, Vec<_>) = sessions.iter().cloned().unzip();
+            assert_eq!(ids, &[]);
         }
 
         Ok(())

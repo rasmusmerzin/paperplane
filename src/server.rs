@@ -185,6 +185,7 @@ where
                     .send(Event::Kicked(id, reason.into()))
                     .await
                     .ok();
+                self.sessions.write().await.remove(&id);
                 match Arc::try_unwrap(conn) {
                     Ok(conn) => conn.close(reason).await,
                     Err(conn) => conn.close_undefined().await,
@@ -215,6 +216,7 @@ where
                 }
             }));
         }
+        self.sessions.write().await.clear();
         let mut result = Ok(());
         for task in tasks {
             result = result.and(task.await);
@@ -243,6 +245,7 @@ where
                                 .send(Event::Kicked(id, reason.clone()))
                                 .await
                                 .ok();
+                            server.sessions.write().await.remove(&id);
                             match Arc::try_unwrap(conn) {
                                 Ok(conn) => conn.close(&reason).await,
                                 Err(conn) => conn.close_undefined().await,
