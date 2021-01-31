@@ -210,6 +210,41 @@ fn state() -> tungstenite::Result<()> {
                 })
             );
         }
+        {
+            let mut sessions = server
+                .filter_sessions(|sess| sess.txt == "11" || sess.txt == "22")
+                .await;
+            sessions.sort_unstable_by_key(|(id, _)| *id);
+            assert_eq!(
+                sessions,
+                &[
+                    (1, Session { txt: "11".into() }),
+                    (2, Session { txt: "22".into() })
+                ]
+            );
+        }
+        assert_eq!(
+            server
+                .filter_and_update_sessions(|id, _| match id {
+                    2 | 3 => Some(Session {
+                        txt: id.to_string()
+                    }),
+                    _ => None,
+                })
+                .await,
+            2
+        );
+        for i in 0..4 {
+            assert_eq!(
+                server.get_session(i).await,
+                Some(Session {
+                    txt: match i {
+                        2 | 3 => i.to_string(),
+                        _ => format!("{}{0}", i),
+                    }
+                })
+            );
+        }
 
         Ok(())
     })

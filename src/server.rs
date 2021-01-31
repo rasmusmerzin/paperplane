@@ -24,7 +24,7 @@ where
     Session: Default + Clone + Send + Sync + 'static,
 {
     /// Create a new `Server` instance.
-    /// Takes capacity for [channel](https://docs.rs/async-std/1.9.0/async_std/channel/fn.bounded.html)
+    /// Takes a capacity for [channel](https://docs.rs/async-std/1.9.0/async_std/channel/fn.bounded.html)
     /// and returns `Arc<Server>` for convenience.
     pub fn new(cap: usize) -> Arc<Self> {
         let (sender, receiver) = bounded(cap);
@@ -274,7 +274,7 @@ where
         }
     }
 
-    /// Replace session for connection id with given predicate.
+    /// Replace session for connection id using the given predicate.
     pub async fn update_session<F>(&self, id: u128, mut predicate: F) -> io::Result<()>
     where
         F: FnMut(&Session) -> Session,
@@ -287,7 +287,7 @@ where
             .ok_or(io::ErrorKind::NotFound.into())
     }
 
-    /// Find the first connection id and session pair that matches given predicate.
+    /// Find the first connection id and session pair that matches the given predicate.
     pub async fn find_session<F>(&self, predicate: F) -> Option<(u128, Session)>
     where
         F: Fn(&Session) -> bool,
@@ -315,5 +315,38 @@ where
                 sess_w.insert(id, new_sess);
             })
             .ok_or(io::ErrorKind::NotFound.into())
+    }
+
+    /// Get a list of connection id and session pairs that match the given predicate.
+    pub async fn filter_sessions<F>(&self, predicate: F) -> Vec<(u128, Session)>
+    where
+        F: Fn(&Session) -> bool,
+    {
+        self.sessions
+            .read()
+            .await
+            .iter()
+            .filter_map(|(id, sess)| match predicate(sess) {
+                true => Some((*id, sess.clone())),
+                false => None,
+            })
+            .collect()
+    }
+
+    /// Filter and update pairs that the given predicate returns some for.
+    pub async fn filter_and_update_sessions<F>(&self, mut predicate: F) -> usize
+    where
+        F: FnMut(u128, &Session) -> Option<Session>,
+    {
+        let mut sess_w = self.sessions.write().await;
+        let updates: Vec<(u128, Session)> = sess_w
+            .iter()
+            .filter_map(|(id, sess)| predicate(*id, sess).map(|sess| (*id, sess)))
+            .collect();
+        let count = updates.len();
+        for (id, new_sess) in updates {
+            sess_w.insert(id, new_sess);
+        }
+        count
     }
 }
