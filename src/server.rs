@@ -11,11 +11,11 @@ use std::io;
 
 /// A TCP WebSocket Server.
 pub struct Server {
-    sender: Mutex<Sender<Event>>,
+    sender: Sender<Event>,
     receiver: Mutex<Receiver<Event>>,
     connection_seq: Mutex<u128>,
     connections: RwLock<HashMap<u128, (Arc<Connection<TcpStream>>, task::JoinHandle<()>)>>,
-    listeners: Mutex<Vec<task::JoinHandle<()>>>,
+    listener_tasks: Mutex<Vec<task::JoinHandle<()>>>,
 }
 
 impl Server {
@@ -25,64 +25,43 @@ impl Server {
     pub fn new(cap: usize) -> Arc<Self> {
         let (sender, receiver) = bounded(cap);
         Arc::new(Self {
-            sender: Mutex::new(sender),
+            sender: sender,
             receiver: Mutex::new(receiver),
             connection_seq: Mutex::new(0),
             connections: RwLock::new(HashMap::new()),
-            listeners: Mutex::new(vec![]),
+            listener_tasks: Mutex::new(vec![]),
         })
     }
 
     /// Accept given TcpStream as a WebSocket connection.
-    pub async fn accept(self: &Arc<Self>, stream: TcpStream) -> tungstenite::Result<u128> {
+    async fn accept(self: &Arc<Self>, stream: TcpStream) -> tungstenite::Result<u128> {
         let conn = Arc::new(Connection::accept(stream).await?);
-
         let conn_id;
         {
             let mut conn_seq = self.connection_seq.lock().await;
             conn_id = *conn_seq;
             *conn_seq += 1;
         }
-
-        let server = self.clone();
-
-        self.connections.write().await.insert(
-            conn_id,
-            (
-                conn.clone(),
-                task::spawn(async move {
-                    while let Some(msg) = conn.next().await {
-                        if let Ok(msg) = msg {
-                            if msg.is_binary() || msg.is_text() {
-                                server
-                                    .sender
-                                    .lock()
-                                    .await
-                                    .send(Event::Message(conn_id, msg))
-                                    .await
-                                    .ok();
-                            }
-                        }
+        let reader_handle = {
+            let server = self.clone();
+            let sender = self.sender.clone();
+            let conn = conn.clone();
+            task::spawn(async move {
+                while let Some(msg) = conn.next().await.transpose().ok().flatten() {
+                    if msg.is_close() {
+                        break;
                     }
-                    server.connections.write().await.remove(&conn_id);
-                    server
-                        .sender
-                        .lock()
-                        .await
-                        .send(Event::Disconnected(conn_id))
-                        .await
-                        .ok();
-                }),
-            ),
-        );
-
-        self.sender
-            .lock()
+                    sender.send(Event::Message(conn_id, msg)).await.ok();
+                }
+                server.connections.write().await.remove(&conn_id);
+                sender.send(Event::Disconnected(conn_id)).await.ok();
+            })
+        };
+        self.connections
+            .write()
             .await
-            .send(Event::Connected(conn_id))
-            .await
-            .ok();
-
+            .insert(conn_id, (conn, reader_handle));
+        self.sender.send(Event::Connected(conn_id)).await.ok();
         Ok(conn_id)
     }
 
@@ -93,24 +72,27 @@ impl Server {
     {
         let listener = TcpListener::bind(addr).await?;
         let server = self.clone();
-        self.listeners.lock().await.push(task::spawn(async move {
-            let mut incoming = listener.incoming();
-            while let Some(stream) = incoming.next().await {
-                if let Ok(stream) = stream {
+        self.listener_tasks
+            .lock()
+            .await
+            .push(task::spawn(async move {
+                let mut incoming = listener.incoming();
+                while let Some(stream) = incoming.next().await {
                     let server = server.clone();
                     task::spawn(async move {
-                        server.accept(stream).await.ok();
+                        if let Ok(stream) = stream {
+                            server.accept(stream).await.ok();
+                        }
                     });
                 }
-            }
-        }));
+            }));
         Ok(())
     }
 
     /// Close all connections and stop all listeners.
     pub async fn close(self: &Arc<Self>) -> tungstenite::Result<()> {
-        let mut listeners = self.listeners.lock().await;
-        while let Some(task) = listeners.pop() {
+        let mut listener_tasks = self.listener_tasks.lock().await;
+        for task in listener_tasks.drain(..) {
             task.cancel().await;
         }
         self.kick_all("server closed".into()).await
@@ -169,8 +151,6 @@ impl Server {
             Some((conn, task)) => {
                 task.cancel().await;
                 self.sender
-                    .lock()
-                    .await
                     .send(Event::Kicked(id, reason.into()))
                     .await
                     .ok();
@@ -193,8 +173,6 @@ impl Server {
                 task.cancel().await;
                 server
                     .sender
-                    .lock()
-                    .await
                     .send(Event::Kicked(id, reason.clone()))
                     .await
                     .ok();
@@ -227,8 +205,6 @@ impl Server {
                             task.cancel().await;
                             server
                                 .sender
-                                .lock()
-                                .await
                                 .send(Event::Kicked(id, reason.clone()))
                                 .await
                                 .ok();
