@@ -8,8 +8,29 @@ use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use paperplane::tungstenite::{self, Message};
 use paperplane::{Event, Server};
+use std::convert::TryFrom;
+use std::string::FromUtf8Error;
 
 const LOCALHOST: &str = "127.0.0.1";
+
+#[derive(Debug, PartialEq)]
+struct Msg(String);
+
+impl From<Message> for Msg {
+    fn from(msg: Message) -> Self {
+        Self(String::from_utf8_lossy(&msg.into_data()).into())
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct TrueMsg(String);
+
+impl TryFrom<Message> for TrueMsg {
+    type Error = FromUtf8Error;
+    fn try_from(msg: Message) -> Result<Self, Self::Error> {
+        Ok(Self(String::from_utf8(msg.into_data())?))
+    }
+}
 
 async fn base(
     port: usize,
@@ -43,6 +64,44 @@ fn receive() -> tungstenite::Result<()> {
         let msg = Message::Text("second".into());
         clients[1].send(msg.clone()).await?;
         assert_eq!(server.next::<Message>().await, Some(Event::Message(1, msg)));
+
+        server.close().await
+    })
+}
+
+#[test]
+fn receive_convert() -> tungstenite::Result<()> {
+    task::block_on(async {
+        let (server, mut clients) = base(8011, 2).await?;
+
+        let msg = Message::Text("first".into());
+        clients[0].send(msg.clone()).await?;
+        assert_eq!(
+            server.next().await,
+            Some(Event::Message(0, Msg("first".into())))
+        );
+
+        let msg = Message::Text("second".into());
+        clients[1].send(msg.clone()).await?;
+        assert_eq!(
+            server.next().await,
+            Some(Event::Message(1, Msg("second".into())))
+        );
+
+        let msg = Message::Text("third".into());
+        clients[0].send(msg.clone()).await?;
+        assert_eq!(
+            server.next_transform().await,
+            Some(Ok(Event::Message(0, TrueMsg("third".into()))))
+        );
+
+        let msg = Message::Binary(vec![0, 159]);
+        clients[1].send(msg.clone()).await?;
+        assert!(server
+            .next_transform::<TrueMsg>()
+            .await
+            .map(|res| res.is_err())
+            .unwrap_or(false));
 
         server.close().await
     })
