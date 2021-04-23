@@ -6,6 +6,7 @@ use async_tungstenite::{accept_async, WebSocketStream};
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::sink::SinkExt;
 use futures::stream::{SplitSink, SplitStream, StreamExt};
+use std::borrow::Cow;
 use std::io;
 
 pub struct Connection<S> {
@@ -37,7 +38,10 @@ where
         self.sender.lock().await.close().await
     }
 
-    pub async fn close(self, reason: &str) -> tungstenite::Result<()> {
+    pub async fn close<'t, R>(self, reason: R) -> tungstenite::Result<()>
+    where
+        R: Into<Cow<'t, str>>,
+    {
         match self.sender.into_inner().reunite(self.receiver.into_inner()) {
             Ok(mut ws) => {
                 ws.close(Some(CloseFrame {
