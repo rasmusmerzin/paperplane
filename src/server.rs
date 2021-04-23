@@ -123,6 +123,7 @@ impl Server {
     }
 
     /// Send a message to a connection with the given id.
+    /// If id is `None` then the messages will be sent to all connections.
     pub async fn send(&self, id: Option<u128>, msg: Message) -> tungstenite::Result<()> {
         match id {
             Some(id) => match self.connections.read().await.get(&id) {
@@ -160,6 +161,7 @@ impl Server {
     }
 
     /// Close a connection with the given id and reason.
+    /// If id is `None` then all connections will be closed.
     pub async fn kick(self: &Arc<Self>, id: Option<u128>, reason: &str) -> tungstenite::Result<()> {
         match id {
             Some(id) => match self.connections.write().await.remove(&id) {
