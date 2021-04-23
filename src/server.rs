@@ -11,8 +11,8 @@ use std::io;
 
 /// A TCP WebSocket Server.
 pub struct Server {
-    sender: Sender<Event>,
-    receiver: Mutex<Receiver<Event>>,
+    sender: Sender<Event<Message>>,
+    receiver: Mutex<Receiver<Event<Message>>>,
     connection_seq: Mutex<u128>,
     connections: RwLock<HashMap<u128, (Arc<Connection<TcpStream>>, task::JoinHandle<()>)>>,
     listener_tasks: Mutex<Vec<task::JoinHandle<()>>>,
@@ -103,7 +103,7 @@ impl Server {
     }
 
     /// Get next server event.
-    pub async fn next(&self) -> Option<Event> {
+    pub async fn next(&self) -> Option<Event<Message>> {
         self.receiver.lock().await.next().await
     }
 

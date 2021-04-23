@@ -1,8 +1,6 @@
-use crate::tungstenite::Message;
-
 /// An enum representing server events.
 #[derive(Debug, PartialEq, Clone)]
-pub enum Event {
+pub enum Event<Msg> {
     /// New connection created with the id.
     Connected(u128),
     /// Connection with the id closed by client.
@@ -10,10 +8,10 @@ pub enum Event {
     /// Connection with the id closed by the server with the reason.
     Kicked(u128, String),
     /// Message sent by a client with the connection id.
-    Message(u128, Message),
+    Message(u128, Msg),
 }
 
-impl Event {
+impl<M> Event<M> {
     pub fn is_connected(&self) -> bool {
         match self {
             Event::Connected(_) => true,
@@ -46,22 +44,23 @@ impl Event {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tungstenite::Message;
 
     #[test]
     fn variant_checks() {
-        let event = Event::Connected(0);
+        let event = Event::Connected::<()>(0);
         assert!(event.is_connected());
         assert!(!event.is_disconnected());
         assert!(!event.is_kicked());
         assert!(!event.is_message());
 
-        let event = Event::Disconnected(0);
+        let event = Event::Disconnected::<()>(0);
         assert!(!event.is_connected());
         assert!(event.is_disconnected());
         assert!(!event.is_kicked());
         assert!(!event.is_message());
 
-        let event = Event::Kicked(0, "".into());
+        let event = Event::Kicked::<()>(0, "".into());
         assert!(!event.is_connected());
         assert!(!event.is_disconnected());
         assert!(event.is_kicked());
