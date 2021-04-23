@@ -22,7 +22,10 @@ async fn base(
     let mut clients = vec![];
     for i in 0..count {
         clients.push(connect_async(format!("ws://{}", addr)).await?.0);
-        assert_eq!(server.next().await, Some(Event::Connected(i as u128)));
+        assert_eq!(
+            server.next::<Message>().await,
+            Some(Event::Connected(i as u128))
+        );
     }
 
     Ok((server, clients))
@@ -35,11 +38,11 @@ fn receive() -> tungstenite::Result<()> {
 
         let msg = Message::Text("first".into());
         clients[0].send(msg.clone()).await?;
-        assert_eq!(server.next().await, Some(Event::Message(0, msg)));
+        assert_eq!(server.next::<Message>().await, Some(Event::Message(0, msg)));
 
         let msg = Message::Text("second".into());
         clients[1].send(msg.clone()).await?;
-        assert_eq!(server.next().await, Some(Event::Message(1, msg)));
+        assert_eq!(server.next::<Message>().await, Some(Event::Message(1, msg)));
 
         server.close().await
     })
@@ -81,10 +84,13 @@ fn disconnect() -> tungstenite::Result<()> {
                 reason: "kick".into(),
             }))
         );
-        assert_eq!(server.next().await, Some(Event::Kicked(0, "kick".into())));
+        assert_eq!(
+            server.next::<Message>().await,
+            Some(Event::Kicked(0, "kick".into()))
+        );
 
         clients[1].close(None).await?;
-        assert_eq!(server.next().await, Some(Event::Disconnected(1)));
+        assert_eq!(server.next::<Message>().await, Some(Event::Disconnected(1)));
 
         server.kick(None, "all".into()).await?;
         let close_frame = Message::Close(Some(CloseFrame {

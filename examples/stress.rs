@@ -1,4 +1,5 @@
 use async_std::task;
+use paperplane::tungstenite::Message;
 use paperplane::{Event, Server};
 
 fn main() {
@@ -7,7 +8,7 @@ fn main() {
     task::block_on(async {
         server.listen("0.0.0.0:8000").await.unwrap();
 
-        while let Some(event) = server.next().await {
+        while let Some(event) = server.next::<Message>().await {
             task::spawn(async move {
                 match event {
                     Event::Message(id, msg) => {

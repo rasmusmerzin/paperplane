@@ -103,8 +103,11 @@ impl Server {
     }
 
     /// Get next server event.
-    pub async fn next(&self) -> Option<Event<Message>> {
-        self.receiver.lock().await.next().await
+    pub async fn next<M>(&self) -> Option<Event<M>>
+    where
+        M: From<Message>,
+    {
+        self.receiver.lock().await.next().await.map(|e| e.into())
     }
 
     /// Send a message to all current connections.

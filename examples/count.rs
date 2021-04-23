@@ -25,7 +25,7 @@ fn main() {
     // Print messages sent by clients
     task::block_on(async {
         server.listen("0.0.0.0:8000").await.unwrap();
-        while let Some(event) = server.next().await {
+        while let Some(event) = server.next::<Message>().await {
             println!("{:?}", event);
         }
     });

@@ -39,12 +39,33 @@ impl<M> Event<M> {
             _ => false,
         }
     }
+
+    pub fn into<T>(self) -> Event<T>
+    where
+        T: From<M>,
+    {
+        match self {
+            Self::Connected(id) => Event::Connected(id),
+            Self::Disconnected(id) => Event::Disconnected(id),
+            Self::Kicked(id, reason) => Event::Kicked(id, reason),
+            Self::Message(id, msg) => Event::Message(id, msg.into()),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::tungstenite::Message;
+
+    #[derive(Debug, PartialEq)]
+    struct Msg(String);
+
+    impl From<Message> for Msg {
+        fn from(msg: Message) -> Self {
+            Self(String::from_utf8_lossy(&msg.into_data()).into())
+        }
+    }
 
     #[test]
     fn variant_checks() {
@@ -66,10 +87,13 @@ mod tests {
         assert!(event.is_kicked());
         assert!(!event.is_message());
 
-        let event = Event::Message(0, Message::Text("".into()));
+        let event = Event::Message(0, Message::Text("some".into()));
         assert!(!event.is_connected());
         assert!(!event.is_disconnected());
         assert!(!event.is_kicked());
         assert!(event.is_message());
+
+        let event: Event<Msg> = event.into();
+        assert_eq!(event, Event::Message(0, Msg("some".into())));
     }
 }
