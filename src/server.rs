@@ -127,13 +127,16 @@ impl Server {
 
     /// Send a message to a connection with the given id.
     /// If id is `None` then the messages will be sent to all connections.
-    pub async fn send(&self, id: Option<u128>, msg: Message) -> tungstenite::Result<()> {
+    pub async fn send<M>(&self, id: Option<u128>, msg: M) -> tungstenite::Result<()>
+    where
+        M: Into<Message>,
+    {
         match id {
             Some(id) => match self.connections.read().await.get(&id) {
-                Some((conn, _)) => conn.send(msg).await,
+                Some((conn, _)) => conn.send(msg.into()).await,
                 None => Err(tungstenite::Error::Io(io::ErrorKind::NotFound.into())),
             },
-            None => self.send_all(msg).await,
+            None => self.send_all(msg.into()).await,
         }
     }
 

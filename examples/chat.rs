@@ -14,23 +14,16 @@ fn main() {
             task::spawn(async move {
                 match event {
                     Event::Connected(id) => {
-                        server
-                            .send(None, Message::Text(format!("{} connected", id)))
-                            .await
-                            .ok();
-                        server
-                            .send(Some(id), Message::Text("Welcome!".into()))
-                            .await
-                            .ok()
+                        server.send(None, format!("{} connected", id)).await.ok();
+                        server.send(Some(id), "Welcome!").await.ok()
                     }
 
-                    Event::Disconnected(id) => server
-                        .send(None, Message::Text(format!("{} disconnected", id)))
-                        .await
-                        .ok(),
+                    Event::Disconnected(id) => {
+                        server.send(None, format!("{} disconnected", id)).await.ok()
+                    }
 
                     Event::Kicked(id, reason) => server
-                        .send(None, Message::Text(format!("{} kicked: '{}'", id, reason)))
+                        .send(None, format!("{} kicked: '{}'", id, reason))
                         .await
                         .ok(),
 
@@ -38,10 +31,7 @@ fn main() {
                         Ok("close") => server.close().await.ok(),
                         Ok("exit") => server.kick(Some(id), "exit").await.ok(),
                         Ok("kickall") => server.kick(None, "kickall".into()).await.ok(),
-                        _ => server
-                            .send(None, Message::Text(format!("{}: {}", id, msg)))
-                            .await
-                            .ok(),
+                        _ => server.send(None, format!("{}: {}", id, msg)).await.ok(),
                     },
                 }
             });
