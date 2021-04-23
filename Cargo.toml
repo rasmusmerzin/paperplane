@@ -1,6 +1,6 @@
 [package]
 name = "paperplane"
-version = "0.3.2"
+version = "0.4.0"
 authors = ["Emil Rasmus Merzin <rasmusmerzin@gmail.com>"]
 edition = "2018"
 description = "Async WebSocket library"
@@ -11,8 +11,8 @@ keywords = ["websocket", "async"]
 
 [dependencies]
 async-std = "1.9"
-async-tungstenite = "0.12"
+async-tungstenite = "0.13"
 futures = "0.3"
 
 [dev-dependencies]
-async-tungstenite = { version = "0.12", features = ["async-std-runtime"] }
+async-tungstenite = { version = "0.13", features = ["async-std-runtime"] }

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://doc.rust-lang.org/carg
 
 ## [Unreleased]
 
+## [0.4.0] - 2021-04-23
+
 ### Added
 
 - `connections` method
@@ -48,7 +50,8 @@ and this project adheres to [Semantic Versioning](https://doc.rust-lang.org/carg
 
 - `futures::channel::mpsc::channel` to `async_std::channel::bounded`
 
-[unreleased]: https://gitlab.com/rasmusmerzin/paperplane/compare/v0.3.2...master
+[unreleased]: https://gitlab.com/rasmusmerzin/paperplane/compare/v0.4.0...master
+[0.4.0]: https://gitlab.com/rasmusmerzin/paperplane/compare/v0.3.2...v0.4.0
 [0.3.2]: https://gitlab.com/rasmusmerzin/paperplane/compare/v0.3.1...v0.3.2
 [0.3.1]: https://gitlab.com/rasmusmerzin/paperplane/compare/v0.3.0...v0.3.1
 [0.3.0]: https://gitlab.com/rasmusmerzin/paperplane/compare/v0.2.2...v0.3.0

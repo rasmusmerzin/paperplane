@@ -66,6 +66,7 @@ impl Server {
         Ok(conn_id)
     }
 
+    /// List connection ids.
     pub async fn connections(&self) -> Vec<u128> {
         self.connections.read().await.keys().map(|v| *v).collect()
     }
