@@ -3,7 +3,7 @@ use paperplane::tungstenite::Message;
 use paperplane::{Event, Server};
 
 fn main() {
-    let server = Server::<()>::new(10);
+    let server = Server::new(10);
 
     task::block_on(async {
         server.listen("0.0.0.0:8000").await.unwrap();

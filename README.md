@@ -34,7 +34,7 @@ use paperplane::Server;
 use std::time;
 
 fn main() {
-    let server = Server::<()>::new(10);
+    let server = Server::new(10);
 
     // Send count to all connected clients each second
     {
