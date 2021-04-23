@@ -7,12 +7,13 @@ use async_std::sync::{Arc, Mutex, RwLock};
 use async_std::task;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
+use std::convert::{TryFrom, TryInto};
 use std::io;
 
 /// A TCP WebSocket Server.
 pub struct Server {
-    sender: Sender<Event>,
-    receiver: Mutex<Receiver<Event>>,
+    sender: Sender<Event<Message>>,
+    receiver: Mutex<Receiver<Event<Message>>>,
     connection_seq: Mutex<u128>,
     connections: RwLock<HashMap<u128, (Arc<Connection<TcpStream>>, task::JoinHandle<()>)>>,
     listener_tasks: Mutex<Vec<task::JoinHandle<()>>>,
@@ -103,8 +104,26 @@ impl Server {
     }
 
     /// Get next server event.
-    pub async fn next(&self) -> Option<Event> {
-        self.receiver.lock().await.next().await
+    pub async fn next<M>(&self) -> Option<Event<M>>
+    where
+        M: From<Message>,
+    {
+        self.receiver.lock().await.next().await.map(|e| e.into())
+    }
+
+    /// Get next server event and try converting if it's a `Event::Message`.
+    pub async fn next_transform<M>(
+        &self,
+    ) -> Option<Result<Event<M>, <M as TryFrom<Message>>::Error>>
+    where
+        M: TryFrom<Message>,
+    {
+        self.receiver
+            .lock()
+            .await
+            .next()
+            .await
+            .map(|e| e.try_into())
     }
 
     /// Send a message to all current connections.
@@ -124,14 +143,36 @@ impl Server {
 
     /// Send a message to a connection with the given id.
     /// If id is `None` then the messages will be sent to all connections.
-    pub async fn send(&self, id: Option<u128>, msg: Message) -> tungstenite::Result<()> {
+    pub async fn send<M>(&self, id: Option<u128>, msg: M) -> tungstenite::Result<()>
+    where
+        M: Into<Message>,
+    {
         match id {
             Some(id) => match self.connections.read().await.get(&id) {
-                Some((conn, _)) => conn.send(msg).await,
+                Some((conn, _)) => conn.send(msg.into()).await,
                 None => Err(tungstenite::Error::Io(io::ErrorKind::NotFound.into())),
             },
-            None => self.send_all(msg).await,
+            None => self.send_all(msg.into()).await,
         }
+    }
+
+    /// Try converting the message and send to a connection with the given id.
+    /// If id is `None` then the messages will be sent to all connections.
+    pub async fn send_transform<M>(
+        &self,
+        id: Option<u128>,
+        msg: M,
+    ) -> Result<tungstenite::Result<()>, <M as TryInto<Message>>::Error>
+    where
+        M: TryInto<Message>,
+    {
+        Ok(match id {
+            Some(id) => match self.connections.read().await.get(&id) {
+                Some((conn, _)) => conn.send(msg.try_into()?).await,
+                None => Err(tungstenite::Error::Io(io::ErrorKind::NotFound.into())),
+            },
+            None => self.send_all(msg.try_into()?).await,
+        })
     }
 
     /// Close all current connections with the given reason.

@@ -10,10 +10,12 @@ and this project adheres to [Semantic Versioning](https://doc.rust-lang.org/carg
 ### Added
 
 - `connections` method
+- `next_transform` & `send_transform` methods
 
 ### Changed
 
-- `send` & `kick` methods
+- `Event` generic over `Message`
+- `next`, `send` & `kick` methods
 
 ### Removed
 
