@@ -1,8 +1,9 @@
+use crate::tungstenite::Message;
 use std::convert::TryInto;
 
 /// An enum representing server events.
 #[derive(Debug, PartialEq, Clone)]
-pub enum Event<Msg> {
+pub enum Event<Msg = Message> {
     /// New connection created with the id.
     Connected(u128),
     /// Connection with the id closed by client.

@@ -12,8 +12,8 @@ use std::io;
 
 /// A TCP WebSocket Server.
 pub struct Server {
-    sender: Sender<Event<Message>>,
-    receiver: Mutex<Receiver<Event<Message>>>,
+    sender: Sender<Event>,
+    receiver: Mutex<Receiver<Event>>,
     connection_seq: Mutex<u128>,
     connections: RwLock<HashMap<u128, (Arc<Connection<TcpStream>>, task::JoinHandle<()>)>>,
     listener_tasks: Mutex<Vec<task::JoinHandle<()>>>,
