@@ -7,9 +7,18 @@ and this project adheres to [Semantic Versioning](https://doc.rust-lang.org/carg
 
 ## [Unreleased]
 
+### Added
+
+- `connections` method
+
+### Changed
+
+- `send` & `kick` methods
+
 ### Removed
 
 - Sessions
+- `send_all`, `kick_all`, `send_map` & `kick_map` methods
 
 ### Fixed
 
