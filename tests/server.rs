@@ -8,7 +8,7 @@ use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use paperplane::tungstenite::{self, Message};
 use paperplane::{Event, Server};
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::string::FromUtf8Error;
 
 const LOCALHOST: &str = "127.0.0.1";
@@ -29,6 +29,16 @@ impl TryFrom<Message> for TrueMsg {
     type Error = FromUtf8Error;
     fn try_from(msg: Message) -> Result<Self, Self::Error> {
         Ok(Self(String::from_utf8(msg.into_data())?))
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct ErrMsg;
+
+impl TryInto<Message> for ErrMsg {
+    type Error = ();
+    fn try_into(self) -> Result<Message, Self::Error> {
+        Err(())
     }
 }
 
@@ -112,19 +122,40 @@ fn send() -> tungstenite::Result<()> {
     task::block_on(async {
         let (server, mut clients) = base(8002, 3).await?;
 
-        let msg0 = Message::Text("first back".into());
-        server.send(Some(0), msg0.clone()).await?;
-        assert_eq!(clients[0].next().await.unwrap()?, msg0);
+        let msg = Message::Text("first back".into());
+        server.send(Some(0), msg.clone()).await?;
+        assert_eq!(clients[0].next().await.unwrap()?, msg);
 
-        let msg1 = Message::Text("second back".into());
-        server.send(Some(1), msg1.clone()).await?;
-        assert_eq!(clients[1].next().await.unwrap()?, msg1);
+        let msg = Message::Text("second back".into());
+        server.send(Some(1), msg.clone()).await?;
+        assert_eq!(clients[1].next().await.unwrap()?, msg);
 
         let msg = Message::Text("both back".into());
         server.send(None, msg.clone()).await?;
         assert_eq!(clients[0].next().await.unwrap()?, msg);
         assert_eq!(clients[1].next().await.unwrap()?, msg);
         assert_eq!(clients[2].next().await.unwrap()?, msg);
+
+        server.close().await
+    })
+}
+
+#[test]
+fn send_convert() -> tungstenite::Result<()> {
+    task::block_on(async {
+        let (server, mut clients) = base(8012, 2).await?;
+
+        let msg = "plain";
+        server.send(Some(0), msg).await?;
+        assert_eq!(clients[0].next().await.unwrap()?, Message::Text(msg.into()));
+
+        assert!(server.send_transform(Some(1), ErrMsg).await.is_err());
+
+        server.send(Some(1), vec![0, 65]).await?;
+        assert_eq!(
+            clients[1].next().await.unwrap()?,
+            Message::Binary(vec![0, 65])
+        );
 
         server.close().await
     })
