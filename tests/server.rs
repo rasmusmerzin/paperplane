@@ -51,25 +51,15 @@ fn send() -> tungstenite::Result<()> {
         let (server, mut clients) = base(8002, 3).await?;
 
         let msg0 = Message::Text("first back".into());
-        server.send(0, msg0.clone()).await?;
+        server.send(Some(0), msg0.clone()).await?;
         assert_eq!(clients[0].next().await.unwrap()?, msg0);
 
         let msg1 = Message::Text("second back".into());
-        server.send(1, msg1.clone()).await?;
-        assert_eq!(clients[1].next().await.unwrap()?, msg1);
-
-        server
-            .send_map(|id| match id {
-                0 => Some(msg0.clone()),
-                1 => Some(msg1.clone()),
-                _ => None,
-            })
-            .await?;
-        assert_eq!(clients[0].next().await.unwrap()?, msg0);
+        server.send(Some(1), msg1.clone()).await?;
         assert_eq!(clients[1].next().await.unwrap()?, msg1);
 
         let msg = Message::Text("both back".into());
-        server.send_all(msg.clone()).await?;
+        server.send(None, msg.clone()).await?;
         assert_eq!(clients[0].next().await.unwrap()?, msg);
         assert_eq!(clients[1].next().await.unwrap()?, msg);
         assert_eq!(clients[2].next().await.unwrap()?, msg);
@@ -83,46 +73,26 @@ fn disconnect() -> tungstenite::Result<()> {
     task::block_on(async {
         let (server, mut clients) = base(8003, 4).await?;
 
-        server
-            .kick_map(|id| match id {
-                1 => Some("half".into()),
-                _ => None,
-            })
-            .await?;
+        server.kick(Some(0), "kick").await?;
         assert_eq!(
-            clients[1].next().await.unwrap()?,
-            Message::Close(Some(CloseFrame {
-                code: CloseCode::Normal,
-                reason: "half".into(),
-            }))
-        );
-        assert_eq!(
-            server.next().await.unwrap(),
-            Event::Kicked(1, "half".into())
-        );
-
-        server.kick(2, "kick").await?;
-        assert_eq!(
-            clients[2].next().await.unwrap()?,
+            clients[0].next().await.unwrap()?,
             Message::Close(Some(CloseFrame {
                 code: CloseCode::Normal,
                 reason: "kick".into(),
             }))
         );
-        assert_eq!(server.next().await, Some(Event::Kicked(2, "kick".into())));
+        assert_eq!(server.next().await, Some(Event::Kicked(0, "kick".into())));
 
-        clients[0].close(None).await?;
-        assert_eq!(server.next().await, Some(Event::Disconnected(0)));
+        clients[1].close(None).await?;
+        assert_eq!(server.next().await, Some(Event::Disconnected(1)));
 
-        server.kick_all("all".into()).await?;
-        assert_eq!(
-            clients[3].next().await.unwrap()?,
-            Message::Close(Some(CloseFrame {
-                code: CloseCode::Normal,
-                reason: "all".into(),
-            }))
-        );
-        assert_eq!(server.next().await.unwrap(), Event::Kicked(3, "all".into()));
+        server.kick(None, "all".into()).await?;
+        let close_frame = Message::Close(Some(CloseFrame {
+            code: CloseCode::Normal,
+            reason: "all".into(),
+        }));
+        assert_eq!(clients[2].next().await.unwrap()?, close_frame);
+        assert_eq!(clients[3].next().await.unwrap()?, close_frame);
 
         server.close().await
     })

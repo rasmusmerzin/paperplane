@@ -103,16 +103,8 @@ impl Server {
         self.receiver.lock().await.next().await
     }
 
-    /// Send a message to a connection with the given id.
-    pub async fn send(&self, id: u128, msg: Message) -> tungstenite::Result<()> {
-        match self.connections.read().await.get(&id) {
-            Some((conn, _)) => conn.send(msg).await,
-            None => Err(tungstenite::Error::Io(io::ErrorKind::NotFound.into())),
-        }
-    }
-
     /// Send a message to all current connections.
-    pub async fn send_all(&self, msg: Message) -> tungstenite::Result<()> {
+    async fn send_all(&self, msg: Message) -> tungstenite::Result<()> {
         let mut tasks = vec![];
         for (conn, _) in self.connections.read().await.values() {
             let msg = msg.clone();
@@ -126,45 +118,19 @@ impl Server {
         result
     }
 
-    /// Loop through connections and send messages determined by the given closure.
-    pub async fn send_map<F>(&self, map: F) -> tungstenite::Result<()>
-    where
-        F: Fn(u128) -> Option<Message>,
-    {
-        let mut tasks = vec![];
-        for (id, (conn, _)) in self.connections.read().await.iter() {
-            if let Some(msg) = map(*id) {
-                let conn = conn.clone();
-                tasks.push(task::spawn(async move { conn.send(msg).await }));
-            }
-        }
-        let mut result = Ok(());
-        for task in tasks {
-            result = result.and(task.await);
-        }
-        result
-    }
-
-    /// Close a connection with the given id and reason.
-    pub async fn kick(&self, id: u128, reason: &str) -> tungstenite::Result<()> {
-        match self.connections.write().await.remove(&id) {
-            Some((conn, task)) => {
-                task.cancel().await;
-                self.sender
-                    .send(Event::Kicked(id, reason.into()))
-                    .await
-                    .ok();
-                match Arc::try_unwrap(conn) {
-                    Ok(conn) => conn.close(reason).await,
-                    Err(conn) => conn.close_undefined().await,
-                }
-            }
-            None => Err(tungstenite::Error::Io(io::ErrorKind::NotFound.into())),
+    /// Send a message to a connection with the given id.
+    pub async fn send(&self, id: Option<u128>, msg: Message) -> tungstenite::Result<()> {
+        match id {
+            Some(id) => match self.connections.read().await.get(&id) {
+                Some((conn, _)) => conn.send(msg).await,
+                None => Err(tungstenite::Error::Io(io::ErrorKind::NotFound.into())),
+            },
+            None => self.send_all(msg).await,
         }
     }
 
     /// Close all current connections with the given reason.
-    pub async fn kick_all(self: &Arc<Self>, reason: &str) -> tungstenite::Result<()> {
+    async fn kick_all(self: &Arc<Self>, reason: &str) -> tungstenite::Result<()> {
         let mut tasks = vec![];
         for (id, (conn, task)) in self.connections.write().await.drain() {
             let server = self.clone();
@@ -189,39 +155,24 @@ impl Server {
         result
     }
 
-    /// Loop through connections and kick the ones for which's id the given closure returns a reason.
-    pub async fn kick_map<F>(self: &Arc<Self>, map: F) -> tungstenite::Result<()>
-    where
-        F: Fn(u128) -> Option<String>,
-    {
-        let mut tasks = vec![];
-        for id in self.connections.read().await.keys() {
-            let id = *id;
-            if let Some(reason) = map(id) {
-                let server = self.clone();
-                tasks.push(task::spawn(async move {
-                    match server.connections.write().await.remove(&id) {
-                        Some((conn, task)) => {
-                            task.cancel().await;
-                            server
-                                .sender
-                                .send(Event::Kicked(id, reason.clone()))
-                                .await
-                                .ok();
-                            match Arc::try_unwrap(conn) {
-                                Ok(conn) => conn.close(&reason).await,
-                                Err(conn) => conn.close_undefined().await,
-                            }
-                        }
-                        None => Err(tungstenite::Error::Io(io::ErrorKind::NotFound.into())),
+    /// Close a connection with the given id and reason.
+    pub async fn kick(self: &Arc<Self>, id: Option<u128>, reason: &str) -> tungstenite::Result<()> {
+        match id {
+            Some(id) => match self.connections.write().await.remove(&id) {
+                Some((conn, task)) => {
+                    task.cancel().await;
+                    self.sender
+                        .send(Event::Kicked(id, reason.into()))
+                        .await
+                        .ok();
+                    match Arc::try_unwrap(conn) {
+                        Ok(conn) => conn.close(reason).await,
+                        Err(conn) => conn.close_undefined().await,
                     }
-                }));
-            }
+                }
+                None => Err(tungstenite::Error::Io(io::ErrorKind::NotFound.into())),
+            },
+            None => self.kick_all(reason).await,
         }
-        let mut result = Ok(());
-        for task in tasks {
-            result = result.and(task.await);
-        }
-        result
     }
 }
