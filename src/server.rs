@@ -65,6 +65,10 @@ impl Server {
         Ok(conn_id)
     }
 
+    pub async fn connections(&self) -> Vec<u128> {
+        self.connections.read().await.keys().map(|v| *v).collect()
+    }
+
     /// Start listening on given socket address.
     pub async fn listen<A>(self: &Arc<Self>, addr: A) -> io::Result<()>
     where
